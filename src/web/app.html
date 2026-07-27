@@ -2,115 +2,805 @@
 <html>
   <head>
     <base target="_top" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #333; }
-      .nav { background: #1a1a2e; color: white; padding: 0 1.5rem; display: flex; align-items: center; height: 56px; gap: 2rem; }
-      .nav h1 { font-size: 1.1rem; font-weight: 600; }
-      .nav a { color: #a0a0b8; text-decoration: none; font-size: 0.875rem; padding: 0.5rem 0; cursor: pointer; }
-      .nav a.active { color: white; border-bottom: 2px solid #4a90d9; }
-      .nav a:hover { color: white; }
-      .content { max-width: 1200px; margin: 1.5rem auto; padding: 0 1.5rem; }
-      .card { background: white; border-radius: 8px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem; }
-      .card h2 { font-size: 1rem; color: #666; margin-bottom: 0.5rem; }
-      .card .value { font-size: 2rem; font-weight: 700; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-      .status-badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
-      .status-waiting { background: #fff3cd; color: #856404; }
-      .status-received { background: #d4edda; color: #155724; }
-      .status-missing { background: #f8d7da; color: #721c24; }
-      .late-indicator { color: #dc3545; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem; }
-      table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-      th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
-      th { color: #666; font-weight: 600; }
-      select, input { padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.875rem; }
-      .filters { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
-      .hidden { display: none; }
-      .admin-section { margin-bottom: 1.5rem; }
-      .admin-section h3 { margin-bottom: 0.75rem; color: #1a1a2e; }
+      /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 */
+      /* Hallmark · genre: modern-minimal · macrostructure: Workbench · theme: Cobalt · enrichment: none · nav: N13 · footer: Ft2 · audience: Asset Management · use: Gmail Drive sync and property timeline · tone: utilitarian */
+      :root {
+        --color-paper: oklch(97% 0.006 250);
+        --color-paper-2: oklch(94% 0.008 250);
+        --color-paper-3: oklch(90% 0.01 250);
+        --color-panel: oklch(99% 0.004 250);
+        --color-ink: oklch(19% 0.016 250);
+        --color-ink-2: oklch(30% 0.014 250);
+        --color-muted: oklch(47% 0.013 250);
+        --color-rule: oklch(84% 0.012 250);
+        --color-rule-2: oklch(75% 0.014 250);
+        --color-accent: oklch(57% 0.19 258);
+        --color-accent-ink: oklch(98% 0.006 250);
+        --color-focus: oklch(61% 0.18 258);
+        --color-success: oklch(48% 0.13 155);
+        --color-warning: oklch(60% 0.14 78);
+        --color-danger: oklch(55% 0.18 28);
+        --font-display: "Space Grotesk", "Geist", ui-sans-serif, system-ui, sans-serif;
+        --font-body: "IBM Plex Sans", "Geist", ui-sans-serif, system-ui, sans-serif;
+        --font-outlier: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        --space-3xs: 0.125rem;
+        --space-2xs: 0.25rem;
+        --space-xs: 0.5rem;
+        --space-sm: 0.75rem;
+        --space-md: 1rem;
+        --space-lg: 1.5rem;
+        --space-xl: 2.5rem;
+        --space-2xl: 4rem;
+        --text-xs: 0.75rem;
+        --text-sm: 0.875rem;
+        --text-base: 1rem;
+        --text-md: 1.25rem;
+        --text-lg: 1.5625rem;
+        --text-xl: 1.953rem;
+        --text-display: clamp(2rem, 3vw + 1rem, 3.8rem);
+        --radius-sm: 0.375rem;
+        --radius-md: 0.5rem;
+        --radius-lg: 0.75rem;
+        --rule: 1px solid var(--color-rule);
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+        --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+        --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+        --dur-micro: 120ms;
+        --dur-short: 220ms;
+        --dur-long: 420ms;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; overflow-x: clip; }
+      body {
+        min-height: 100dvh;
+        background: var(--color-paper);
+        color: var(--color-ink);
+        font-family: var(--font-body);
+        font-size: var(--text-base);
+        line-height: 1.5;
+      }
+      button, select, input { font: inherit; }
+      button, a, select { -webkit-tap-highlight-color: transparent; }
+      :focus { outline: none; }
+      :focus-visible {
+        outline: 2px solid var(--color-focus);
+        outline-offset: 3px;
+        border-radius: var(--radius-sm);
+      }
+
+      .app-shell {
+        width: min(1440px, 100%);
+        margin-inline: auto;
+        padding: var(--space-md);
+      }
+
+      .topbar {
+        position: sticky;
+        top: var(--space-md);
+        z-index: 20;
+        display: grid;
+        grid-template-columns: auto minmax(12rem, 34rem) auto;
+        gap: var(--space-md);
+        align-items: center;
+        padding: var(--space-sm);
+        background: color-mix(in oklch, var(--color-panel) 92%, transparent);
+        border: var(--rule);
+        border-radius: var(--radius-lg);
+        box-shadow: 0 12px 40px oklch(25% 0.02 250 / 0.08);
+        backdrop-filter: blur(14px) saturate(120%);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        min-width: 0;
+      }
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: var(--radius-md);
+        background: var(--color-ink);
+        color: var(--color-paper);
+        font-family: var(--font-outlier);
+        font-size: var(--text-sm);
+      }
+      .brand-title {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: var(--text-md);
+        font-weight: 700;
+        letter-spacing: 0;
+        line-height: 1.1;
+      }
+      .brand-subtitle {
+        margin: 0;
+        color: var(--color-muted);
+        font-size: var(--text-xs);
+      }
+
+      .searchpill {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        min-width: 0;
+        min-height: 44px;
+        padding: 0 var(--space-sm);
+        border: var(--rule);
+        border-radius: 999px;
+        background: var(--color-paper-2);
+        color: var(--color-muted);
+      }
+      .searchpill input {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        color: var(--color-ink);
+      }
+      .kbd {
+        white-space: nowrap;
+        border: var(--rule);
+        border-radius: var(--radius-sm);
+        padding: var(--space-2xs) var(--space-xs);
+        font-family: var(--font-outlier);
+        font-size: var(--text-xs);
+        color: var(--color-muted);
+        background: var(--color-panel);
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: var(--space-sm);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-xs);
+        min-height: 44px;
+        padding: 0 var(--space-md);
+        border: 1px solid var(--color-rule-2);
+        border-radius: var(--radius-md);
+        background: var(--color-panel);
+        color: var(--color-ink);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform var(--dur-micro) var(--ease-out), background-color var(--dur-short) var(--ease-out);
+      }
+      .btn:hover { background: var(--color-paper-2); }
+      .btn:active { transform: translateY(1px); }
+      .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+      .btn[data-state="loading"]::before {
+        content: "";
+        width: 0.75rem;
+        height: 0.75rem;
+        border: 2px solid var(--color-rule-2);
+        border-top-color: var(--color-accent);
+        border-radius: 50%;
+        animation: spin 900ms linear infinite;
+      }
+      .btn-primary {
+        background: var(--color-ink);
+        color: var(--color-paper);
+        border-color: var(--color-ink);
+      }
+      .btn-primary:hover { background: var(--color-ink-2); }
+
+      .main-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+        gap: var(--space-lg);
+        margin-block-start: var(--space-lg);
+      }
+
+      .panel {
+        background: var(--color-panel);
+        border: var(--rule);
+        border-radius: var(--radius-lg);
+      }
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-md);
+        padding: var(--space-lg);
+        border-block-end: var(--rule);
+      }
+      .panel-title {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: var(--text-md);
+        line-height: 1.2;
+      }
+      .panel-note {
+        margin: var(--space-2xs) 0 0;
+        color: var(--color-muted);
+        font-size: var(--text-sm);
+      }
+      .panel-body { padding: var(--space-lg); }
+
+      .access-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-sm);
+      }
+      .access-card {
+        min-width: 0;
+        padding: var(--space-md);
+        border: var(--rule);
+        border-radius: var(--radius-md);
+        background: var(--color-paper);
+      }
+      .access-label {
+        display: flex;
+        align-items: center;
+        gap: var(--space-xs);
+        margin: 0 0 var(--space-xs);
+        color: var(--color-muted);
+        font-size: var(--text-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .access-value {
+        margin: 0;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+
+      .property-list {
+        display: grid;
+        gap: var(--space-sm);
+      }
+      .property-card {
+        display: grid;
+        gap: var(--space-sm);
+        padding: var(--space-md);
+        border: var(--rule);
+        border-radius: var(--radius-md);
+        background: var(--color-paper);
+      }
+      .property-card.is-active {
+        border-color: var(--color-accent);
+        box-shadow: inset 3px 0 0 var(--color-accent);
+      }
+      .property-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-sm);
+      }
+      .property-name {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: var(--text-base);
+      }
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-xs);
+      }
+      .metric {
+        padding-block: var(--space-xs);
+        border-block-start: var(--rule);
+      }
+      .metric dt {
+        color: var(--color-muted);
+        font-size: var(--text-xs);
+      }
+      .metric dd {
+        margin: 0;
+        font-size: var(--text-sm);
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
+        min-height: 1.7rem;
+        padding-inline: var(--space-sm);
+        border-radius: 999px;
+        font-size: var(--text-xs);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .status::before {
+        content: "";
+        width: 0.45rem;
+        height: 0.45rem;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .status-received { color: var(--color-success); background: color-mix(in oklch, var(--color-success) 10%, var(--color-panel)); }
+      .status-waiting { color: var(--color-warning); background: color-mix(in oklch, var(--color-warning) 12%, var(--color-panel)); }
+      .status-missing { color: var(--color-danger); background: color-mix(in oklch, var(--color-danger) 10%, var(--color-panel)); }
+
+      .timeline-tools {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-md);
+        padding: var(--space-lg);
+        border-block-end: var(--rule);
+      }
+      .select {
+        min-height: 44px;
+        border: 1px solid var(--color-rule-2);
+        border-radius: var(--radius-md);
+        background: var(--color-panel);
+        color: var(--color-ink);
+        padding-inline: var(--space-sm);
+      }
+      .timeline {
+        display: grid;
+        gap: var(--space-md);
+        padding: var(--space-lg);
+      }
+      .timeline-item {
+        display: grid;
+        grid-template-columns: 8rem minmax(0, 1fr);
+        gap: var(--space-md);
+        padding-block: var(--space-md);
+        border-block-end: var(--rule);
+      }
+      .timeline-item:last-child { border-block-end: 0; }
+      .timeline-date {
+        color: var(--color-muted);
+        font-size: var(--text-xs);
+        font-variant-numeric: tabular-nums;
+      }
+      .timeline-main {
+        min-width: 0;
+        display: grid;
+        gap: var(--space-sm);
+      }
+      .timeline-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-sm);
+      }
+      .timeline-title h3 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: var(--text-base);
+        overflow-wrap: anywhere;
+      }
+      .timeline-copy {
+        margin: 0;
+        color: var(--color-muted);
+        font-size: var(--text-sm);
+      }
+      .timeline-kpis {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-xs);
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 1.875rem;
+        padding-inline: var(--space-sm);
+        border: var(--rule);
+        border-radius: 999px;
+        background: var(--color-paper);
+        color: var(--color-ink-2);
+        font-size: var(--text-xs);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .drive-link {
+        color: var(--color-accent);
+        text-decoration: none;
+        font-size: var(--text-sm);
+        font-weight: 700;
+      }
+      .drive-link:hover { text-decoration: underline; }
+
+      .workflow {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: var(--space-sm);
+      }
+      .workflow-step {
+        padding: var(--space-md);
+        border: var(--rule);
+        border-radius: var(--radius-md);
+        background: var(--color-paper);
+      }
+      .workflow-step span {
+        display: block;
+        margin-block-end: var(--space-sm);
+        color: var(--color-accent);
+        font-size: var(--text-xs);
+        font-weight: 700;
+      }
+      .workflow-step h3 {
+        margin: 0 0 var(--space-xs);
+        font-size: var(--text-base);
+        font-family: var(--font-display);
+      }
+      .workflow-step p {
+        margin: 0;
+        color: var(--color-muted);
+        font-size: var(--text-sm);
+      }
+
+      .toast {
+        position: fixed;
+        right: var(--space-md);
+        bottom: var(--space-md);
+        z-index: 50;
+        max-width: min(28rem, calc(100vw - 2rem));
+        padding: var(--space-md);
+        border: var(--rule);
+        border-radius: var(--radius-md);
+        background: var(--color-ink);
+        color: var(--color-paper);
+        opacity: 0;
+        transform: translateY(0.5rem);
+        pointer-events: none;
+        transition: opacity var(--dur-short) var(--ease-out), transform var(--dur-short) var(--ease-out);
+      }
+      .toast.is-visible {
+        opacity: 1;
+        transform: none;
+      }
+
+      .empty {
+        padding: var(--space-xl);
+        border: 1px dashed var(--color-rule-2);
+        border-radius: var(--radius-md);
+        color: var(--color-muted);
+        text-align: left;
+      }
+
+      .foot-line {
+        margin-block-start: var(--space-lg);
+        padding-block: var(--space-md);
+        border-block-start: var(--rule);
+        color: var(--color-muted);
+        font-size: var(--text-xs);
+      }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      @media (hover: hover) and (pointer: fine) {
+        .property-card { transition: transform var(--dur-short) var(--ease-out), border-color var(--dur-short) var(--ease-out); }
+        .property-card:hover { transform: translateY(-1px); border-color: var(--color-rule-2); }
+      }
+
+      @media (max-width: 60rem) {
+        .topbar, .main-grid, .workflow { grid-template-columns: 1fr; }
+        .actions { justify-content: stretch; }
+        .actions .btn { width: 100%; }
+      }
+
+      @media (max-width: 40rem) {
+        .app-shell { padding: var(--space-sm); }
+        .panel-header, .panel-body, .timeline, .timeline-tools { padding: var(--space-md); }
+        .access-grid, .metrics { grid-template-columns: 1fr; }
+        .timeline-item { grid-template-columns: 1fr; }
+        .timeline-title { align-items: flex-start; flex-direction: column; }
+        .searchpill { display: none; }
+        .brand-title { font-size: var(--text-base); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 150ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 150ms !important;
+        }
+      }
     </style>
   </head>
   <body>
-    <div class="nav">
-      <h1>Valoris Reporting</h1>
-      <a class="active" onclick="showView('portfolio')" id="nav-portfolio">Portfolio</a>
-      <a onclick="showView('property')" id="nav-property">Property</a>
-      <a onclick="showView('control')" id="nav-control">Control</a>
-      <a onclick="showView('admin')" id="nav-admin">Admin</a>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">VR</div>
+          <div>
+            <h1 class="brand-title">Valoris Reporting</h1>
+            <p class="brand-subtitle">Asset Management console</p>
+          </div>
+        </div>
+
+        <label class="searchpill" aria-label="Filter timeline">
+          <span>Search</span>
+          <input id="search-input" type="search" placeholder="Property, report, status" oninput="renderTimeline()" />
+          <span class="kbd">Ctrl K</span>
+        </label>
+
+        <div class="actions">
+          <button class="btn" type="button" onclick="loadDashboard()">Refresh</button>
+          <button class="btn btn-primary" id="sync-button" type="button" onclick="syncReports()">Sync Gmail to Drive</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="panel" style="margin-block-start: var(--space-lg);">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Google access</h2>
+              <p class="panel-note">The Apps Script deployment runs with Gmail, Drive, Sheets, and Mail scopes granted by the internal Google account.</p>
+            </div>
+            <span class="status status-received">CONNECTED</span>
+          </div>
+          <div class="panel-body">
+            <div class="access-grid">
+              <div class="access-card">
+                <p class="access-label">Signed in as</p>
+                <p class="access-value" id="current-user">Loading</p>
+              </div>
+              <div class="access-card">
+                <p class="access-label">Gmail intake</p>
+                <p class="access-value">Unread report emails</p>
+              </div>
+              <div class="access-card">
+                <p class="access-label">Drive archive</p>
+                <p class="access-value">Property folders</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" style="margin-block-start: var(--space-lg);">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Workflow</h2>
+              <p class="panel-note">One controlled path from email intake to PM notification.</p>
+            </div>
+          </div>
+          <div class="panel-body">
+            <ol class="workflow">
+              <li class="workflow-step"><span>1.0</span><h3>Authorize Google</h3><p>Internal users grant Gmail and Drive access through Apps Script.</p></li>
+              <li class="workflow-step"><span>2.0</span><h3>Read Gmail</h3><p>The sync checks report emails and classifies attachments by property.</p></li>
+              <li class="workflow-step"><span>3.0</span><h3>Archive to Drive</h3><p>Valid report files move into the configured Drive archive.</p></li>
+              <li class="workflow-step"><span>4.0</span><h3>Notify PM</h3><p>Missing reports trigger reminders based on configured deadlines.</p></li>
+            </ol>
+          </div>
+        </section>
+
+        <div class="main-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">Properties</h2>
+                <p class="panel-note">Operational status by property.</p>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="property-list" id="property-list">
+                <div class="empty">Loading properties.</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="timeline-tools">
+              <div>
+                <h2 class="panel-title">Report timeline</h2>
+                <p class="panel-note">Expected, received, missing, Drive link, occupancy, and leads.</p>
+              </div>
+              <select class="select" id="property-select" onchange="selectProperty(this.value)">
+                <option value="">All properties</option>
+              </select>
+            </div>
+            <div class="timeline" id="timeline">
+              <div class="empty">Loading timeline.</div>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer class="foot-line">
+        Valoris Reporting · Internal Asset Management tool · Gmail to Drive sync · PM reminders
+      </footer>
     </div>
-    <div class="content">
-      <div id="view-portfolio" class="view">
-        <h2 style="margin-bottom:1rem">Portfolio Overview</h2>
-        <div class="grid" id="portfolio-grid">
-          <p>Loading portfolio data...</p>
-        </div>
-      </div>
-      <div id="view-property" class="view hidden">
-        <h2 style="margin-bottom:1rem">Property Detail</h2>
-        <div class="filters">
-          <select id="property-select" onchange="loadPropertyView()"></select>
-        </div>
-        <div id="property-detail"></div>
-      </div>
-      <div id="view-control" class="view hidden">
-        <h2 style="margin-bottom:1rem">Reporting Control</h2>
-        <div class="filters">
-          <select id="control-property" onchange="loadControlView()"><option value="">All Properties</option></select>
-          <select id="control-status" onchange="loadControlView()"><option value="">All Status</option><option value="WAITING">WAITING</option><option value="RECEIVED">RECEIVED</option><option value="MISSING">MISSING</option></select>
-        </div>
-        <div id="control-table"></div>
-      </div>
-      <div id="view-admin" class="view hidden">
-        <h2 style="margin-bottom:1rem">Administration</h2>
-        <div id="admin-content"><p>Admin panel — config and exception management.</p></div>
-      </div>
-    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
     <script>
-      let currentUser = null;
-      let properties = [];
-      let expectedReports = [];
+      let dashboardData = { user: '', properties: [], portfolio: [], timeline: [] };
+      let selectedPropertyId = '';
 
-      function showView(name) {
-        document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-        document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
-        document.getElementById('view-' + name).classList.remove('hidden');
-        document.getElementById('nav-' + name).classList.add('active');
-        if (name === 'portfolio') loadPortfolio();
-        if (name === 'control') loadControlView();
+      function appsScriptAvailable() {
+        return typeof google !== 'undefined' && google.script && google.script.run;
       }
 
-      function loadPortfolio() {
-        google.script.run.withSuccessHandler(renderPortfolio).getPortfolioSummary();
-      }
-
-      function renderPortfolio(data) {
-        const grid = document.getElementById('portfolio-grid');
-        if (!data || data.length === 0) {
-          grid.innerHTML = '<p>No portfolio data available.</p>';
+      function loadDashboard() {
+        if (!appsScriptAvailable()) {
+          renderDashboard({
+            user: 'Preview mode',
+            properties: [],
+            portfolio: [],
+            timeline: []
+          });
           return;
         }
-        grid.innerHTML = data.map(p => `
-          <div class="card">
-            <h2>${p.name}</h2>
-            <div class="value">${p.occupancy != null ? p.occupancy + '%' : '--'}</div>
-            <div style="margin-top:0.5rem;font-size:0.875rem;color:#666">
-              Leads: ${p.leads != null ? p.leads : '--'}
-              <span class="status-badge status-${p.status.toLowerCase()}">${p.status}</span>
-              ${p.late ? '<span class="late-indicator">● Late</span>' : ''}
-            </div>
-            <div style="font-size:0.75rem;color:#999;margin-top:0.25rem">Updated: ${p.lastUpdate || '--'}</div>
-          </div>
-        `).join('');
+
+        google.script.run
+          .withSuccessHandler(renderDashboard)
+          .withFailureHandler(function(error) {
+            showToast('Dashboard did not load. Check Apps Script permissions and Sheet setup.');
+            console.error(error);
+          })
+          .getDashboardData(selectedPropertyId || null);
       }
 
-      function loadPropertyView() { /* populated by server */ }
-      function loadControlView() { /* populated by server */ }
+      function renderDashboard(data) {
+        dashboardData = data || dashboardData;
+        document.getElementById('current-user').textContent = dashboardData.user || 'Workspace user';
+        renderPropertySelect();
+        renderProperties();
+        renderTimeline();
+      }
 
-      google.script.run.withSuccessHandler(function(user) {
-        currentUser = user;
-        loadPortfolio();
-      }).getCurrentUser();
+      function renderPropertySelect() {
+        const select = document.getElementById('property-select');
+        const options = ['<option value="">All properties</option>'].concat(
+          (dashboardData.properties || []).map(function(property) {
+            const selected = property.id === selectedPropertyId ? ' selected' : '';
+            return '<option value="' + escapeHtml(property.id) + '"' + selected + '>' + escapeHtml(property.name) + '</option>';
+          })
+        );
+        select.innerHTML = options.join('');
+      }
+
+      function renderProperties() {
+        const list = document.getElementById('property-list');
+        const portfolio = dashboardData.portfolio || [];
+        if (portfolio.length === 0) {
+          list.innerHTML = '<div class="empty">No active properties configured. Populate the Properties tab first.</div>';
+          return;
+        }
+
+        list.innerHTML = portfolio.map(function(property) {
+          const active = property.id === selectedPropertyId ? ' is-active' : '';
+          return '<button class="property-card' + active + '" type="button" onclick="selectProperty(\\'' + escapeJs(property.id) + '\\')">' +
+            '<div class="property-row">' +
+              '<h3 class="property-name">' + escapeHtml(property.name) + '</h3>' +
+              statusBadge(property.status) +
+            '</div>' +
+            '<dl class="metrics">' +
+              metric('Occupancy', property.occupancy == null ? '--' : property.occupancy + '%') +
+              metric('Leads', property.leads == null ? '--' : property.leads) +
+              metric('Missing', property.missingReports || 0) +
+            '</dl>' +
+          '</button>';
+        }).join('');
+      }
+
+      function selectProperty(propertyId) {
+        selectedPropertyId = propertyId || '';
+        loadDashboard();
+      }
+
+      function renderTimeline() {
+        const timeline = document.getElementById('timeline');
+        const query = (document.getElementById('search-input')?.value || '').toLowerCase();
+        const events = (dashboardData.timeline || []).filter(function(event) {
+          if (!query) return true;
+          return [event.propertyName, event.reportType, event.status, event.periodStart, event.periodEnd].join(' ').toLowerCase().includes(query);
+        });
+
+        if (events.length === 0) {
+          timeline.innerHTML = '<div class="empty">No report timeline yet. Run sync after Properties and ReportDefinitions are configured.</div>';
+          return;
+        }
+
+        timeline.innerHTML = events.map(function(event) {
+          return '<article class="timeline-item">' +
+            '<div class="timeline-date">' + escapeHtml(formatDate(event.deadline)) + '</div>' +
+            '<div class="timeline-main">' +
+              '<div class="timeline-title">' +
+                '<h3>' + escapeHtml(event.propertyName) + ' · ' + escapeHtml(event.reportType || 'Report') + '</h3>' +
+                statusBadge(event.status) +
+              '</div>' +
+              '<p class="timeline-copy">Period ' + escapeHtml(event.periodStart || '--') + ' to ' + escapeHtml(event.periodEnd || '--') + '. Deadline ' + escapeHtml(formatDate(event.deadline)) + '.</p>' +
+              '<div class="timeline-kpis">' +
+                '<span class="chip">Occupancy ' + escapeHtml(event.occupancy == null ? '--' : event.occupancy + '%') + '</span>' +
+                '<span class="chip">Leads ' + escapeHtml(event.leads == null ? '--' : event.leads) + '</span>' +
+                '<span class="chip">' + escapeHtml(event.frequency || 'Frequency --') + '</span>' +
+                (event.late ? '<span class="chip">Late</span>' : '') +
+              '</div>' +
+              (event.driveLink ? '<a class="drive-link" target="_blank" rel="noopener" href="' + escapeHtml(event.driveLink) + '">Open Drive report</a>' : '<p class="timeline-copy">Drive report not archived yet.</p>') +
+            '</div>' +
+          '</article>';
+        }).join('');
+      }
+
+      function syncReports() {
+        const button = document.getElementById('sync-button');
+        button.disabled = true;
+        button.dataset.state = 'loading';
+        button.textContent = 'Syncing';
+
+        if (!appsScriptAvailable()) {
+          setTimeout(function() {
+            button.disabled = false;
+            button.dataset.state = '';
+            button.textContent = 'Sync Gmail to Drive';
+            showToast('Preview mode. Deploy to Apps Script to sync Gmail and Drive.');
+          }, 300);
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function(result) {
+            button.disabled = false;
+            button.dataset.state = '';
+            button.textContent = 'Sync Gmail to Drive';
+            showToast('Sync complete: ' + result.processed + ' processed, ' + result.skipped + ' skipped, ' + result.reminders + ' reminders.');
+            loadDashboard();
+          })
+          .withFailureHandler(function(error) {
+            button.disabled = false;
+            button.dataset.state = '';
+            button.textContent = 'Sync Gmail to Drive';
+            showToast('Sync failed. Check Gmail, Drive, and script property configuration.');
+            console.error(error);
+          })
+          .syncReportsNow();
+      }
+
+      function metric(label, value) {
+        return '<div class="metric"><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(String(value)) + '</dd></div>';
+      }
+
+      function statusBadge(status) {
+        const normalized = String(status || 'WAITING').toLowerCase();
+        return '<span class="status status-' + escapeHtml(normalized) + '">' + escapeHtml(String(status || 'WAITING')) + '</span>';
+      }
+
+      function formatDate(value) {
+        if (!value) return '--';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return new Intl.DateTimeFormat(undefined, { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date);
+      }
+
+      function showToast(message) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.classList.add('is-visible');
+        window.clearTimeout(showToast.timer);
+        showToast.timer = window.setTimeout(function() {
+          toast.classList.remove('is-visible');
+        }, 5000);
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function escapeJs(value) {
+        return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      }
+
+      window.addEventListener('keydown', function(event) {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+          event.preventDefault();
+          document.getElementById('search-input')?.focus();
+        }
+      });
+
+      loadDashboard();
     </script>
   </body>
 </html>

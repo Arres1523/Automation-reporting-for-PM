@@ -1,4 +1,12 @@
-import { renderApp } from './web/app-server';
+import {
+  getCurrentUser,
+  getDashboardData,
+  getPortfolioSummary,
+  getPropertyList,
+  getReportTimeline,
+  renderApp,
+  syncReportsNow,
+} from './web/app-server';
 import {
   evaluateStatuses,
   extendCalendar,
@@ -23,5 +31,11 @@ appsScriptGlobals.processIntake = processIntake;
 appsScriptGlobals.evaluateStatuses = evaluateStatuses;
 appsScriptGlobals.extendCalendar = extendCalendar;
 appsScriptGlobals.installDevTriggers = installDevTriggers;
+appsScriptGlobals.getCurrentUser = getCurrentUser;
+appsScriptGlobals.getPortfolioSummary = getPortfolioSummary;
+appsScriptGlobals.getPropertyList = getPropertyList;
+appsScriptGlobals.getReportTimeline = getReportTimeline;
+appsScriptGlobals.getDashboardData = getDashboardData;
+appsScriptGlobals.syncReportsNow = syncReportsNow;
 
 export { doGet, onInstall };

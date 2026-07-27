@@ -1,0 +1,13 @@
+{
+  "date": "2026-07-27",
+  "font_stack": "Native browser stack in src/web/app.html before Hallmark",
+  "palette": "Inline CSS colors in src/web/app.html before Hallmark",
+  "motion": "No motion library",
+  "spacing": "No existing tokenized spacing scale",
+  "framework": "Vanilla HTML plus Google Apps Script, bundled by esbuild",
+  "preserve": [
+    "Google Apps Script runtime",
+    "Vanilla HTML deployment surface",
+    "Portfolio, property, reporting control, and admin workflow intent"
+  ]
+}
