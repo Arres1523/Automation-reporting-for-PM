@@ -1,0 +1,36 @@
+{
+  "name": "automation-reporting-for-pm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "build:prod": "node esbuild.config.mjs --production",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "deploy": "clasp push && clasp deploy",
+    "lint": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arres1523/Automation-reporting-for-PM.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Arres1523/Automation-reporting-for-PM/issues"
+  },
+  "homepage": "https://github.com/Arres1523/Automation-reporting-for-PM#readme",
+  "devDependencies": {
+    "@types/google-apps-script": "^2.0.11",
+    "esbuild": "^0.28.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
