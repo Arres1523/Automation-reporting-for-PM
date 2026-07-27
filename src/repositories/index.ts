@@ -103,7 +103,7 @@ export interface AuditEntry {
 export interface User {
   email: string;
   role: string;
-  allowedPropertyId: string;
+  allowedPropertyIds: string;
   active: string;
 }
 

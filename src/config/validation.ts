@@ -84,15 +84,17 @@ export function validateExpectedReport(report: {
 export function validateUser(user: {
   email: string;
   role: string;
-  allowedPropertyId: string;
+  allowedPropertyId?: string;
+  allowedPropertyIds?: string;
 }): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   if (!user.email) issues.push({ field: 'email', message: 'Email is required', severity: 'ERROR' });
   if (!user.role) issues.push({ field: 'role', message: 'Role is required', severity: 'ERROR' });
 
-  const validRoles = ['admin', 'manager', 'viewer'];
-  if (user.role && !validRoles.includes(user.role.toLowerCase())) {
+  const validRoles = ['admin', 'asset_management', 'data_analyst', 'pm', 'owner'];
+  const normalizedRole = user.role.trim().toLowerCase().replace(/\s+/g, '_');
+  if (user.role && !validRoles.includes(normalizedRole)) {
     issues.push({ field: 'role', message: `Role must be one of: ${validRoles.join(', ')}`, severity: 'ERROR' });
   }
 

@@ -35,7 +35,7 @@ export const AUDIT_LOG_HEADERS = [
 ] as const;
 
 export const USERS_HEADERS = [
-  'email', 'role', 'allowedPropertyId', 'active',
+  'email', 'role', 'allowedPropertyIds', 'active',
 ] as const;
 
 export const ALL_TABLES: Record<string, readonly string[]> = {

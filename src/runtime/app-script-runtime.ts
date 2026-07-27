@@ -29,9 +29,9 @@ export function buildClassificationRulesFromRows(rows: unknown[][]): Classificat
     .map(row => ({
       reportDefinitionId: String(row[0]),
       propertyId: String(row[1]),
-      senderPattern: String(row[4] || '.*'),
-      subjectPattern: String(row[5] || '.*'),
-      fileNamePattern: String(row[6] || '.*'),
+      senderPattern: String(row[5] || '.*'),
+      subjectPattern: String(row[2] || '.*'),
+      fileNamePattern: '.*',
       frequency: String(row[3]),
     }));
 }
@@ -71,9 +71,11 @@ export function processIntake(): GoogleAppsScript.Content.TextOutput {
     {
       received: requireSheetByName(spreadsheet, 'ReceivedReports'),
       exceptions: requireSheetByName(spreadsheet, 'ExceptionQueue'),
+      audit: requireSheetByName(spreadsheet, 'AuditLog'),
     },
     {
       rootFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_ROOT_FOLDER_ID') || '',
+      actorEmail: Session.getActiveUser().getEmail(),
     }
   );
 

@@ -52,6 +52,13 @@ describe('validateUser', () => {
     const issues = validateUser({ email: 'a@b.com', role: 'superadmin', allowedPropertyId: 'p1' });
     expect(issues.some(i => i.field === 'role')).toBe(true);
   });
+
+  it('accepts the internal Valoris dashboard roles', () => {
+    for (const role of ['admin', 'asset_management', 'asset management', 'data_analyst', 'pm', 'owner']) {
+      const issues = validateUser({ email: `${role.replace(/\s+/g, '_')}@example.com`, role, allowedPropertyId: 'prop-oasis,prop-august' });
+      expect(issues.filter(i => i.severity === 'ERROR')).toHaveLength(0);
+    }
+  });
 });
 
 describe('validateUniqueIds', () => {

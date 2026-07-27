@@ -21,8 +21,8 @@ describe('buildClassificationRulesFromRows', () => {
   it('maps ReportDefinitions rows into classifier rules', () => {
     const rows = [
       ['id', 'propertyId', 'type', 'frequency', 'parserKey', 'authorizedSenders', 'deadlineRule', 'escalationRecipients'],
-      ['def-lj-daily', 'prop-lj', 'DAILY_REPORT', 'DAILY', 'sender@example.com', 'Daily Report', '.*\\.xlsx$', 'asset@example.com'],
-      ['', 'prop-empty', 'DAILY_REPORT', 'DAILY', 'skip@example.com', 'Skip', '.*', 'asset@example.com'],
+      ['def-lj-daily', 'prop-lj', 'Daily Report', 'DAILY', 'daily-parser', 'sender@example.com', '2h', 'asset@example.com'],
+      ['', 'prop-empty', 'DAILY_REPORT', 'DAILY', 'skip-parser', 'skip@example.com', '2h', 'asset@example.com'],
     ];
 
     expect(buildClassificationRulesFromRows(rows)).toEqual([
@@ -31,7 +31,7 @@ describe('buildClassificationRulesFromRows', () => {
         propertyId: 'prop-lj',
         senderPattern: 'sender@example.com',
         subjectPattern: 'Daily Report',
-        fileNamePattern: '.*\\.xlsx$',
+        fileNamePattern: '.*',
         frequency: 'DAILY',
       },
     ]);

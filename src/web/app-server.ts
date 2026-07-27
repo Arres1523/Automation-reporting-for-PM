@@ -21,6 +21,49 @@ export interface PortfolioProperty {
   waitingReports: number;
 }
 
+export interface DashboardMetric {
+  code: string;
+  value: number;
+  unit: string;
+  publishedAt: string;
+}
+
+export interface FinancialMetric extends DashboardMetric {
+  id: string;
+  propertyId: string;
+  periodStart: string;
+  periodEnd: string;
+  sourceReportId: string;
+}
+
+export interface ReportHealth {
+  received: number;
+  missing: number;
+  waiting: number;
+  late: number;
+}
+
+export interface DashboardException {
+  id: string;
+  documentId: string;
+  stage: string;
+  error: string;
+  severity: string;
+  status: string;
+  assignee: string;
+  createdAt: string;
+}
+
+export interface LateReport {
+  id: string;
+  propertyId: string;
+  reportDefinitionId: string;
+  periodStart: string;
+  periodEnd: string;
+  deadline: string;
+  status: string;
+}
+
 export interface ReportTimelineEvent {
   id: string;
   propertyId: string;
@@ -36,19 +79,30 @@ export interface ReportTimelineEvent {
   driveLink: string;
   occupancy: number | null;
   leads: number | null;
+  metrics: DashboardMetric[];
 }
 
 export interface DashboardData {
   user: string;
+  role: string;
+  capabilities: {
+    canSync: boolean;
+    canManageAdmin: boolean;
+    canViewPortfolio: boolean;
+  };
   properties: Array<{ id: string; name: string }>;
   portfolio: PortfolioProperty[];
   timeline: ReportTimelineEvent[];
+  financialMetrics: FinancialMetric[];
+  reportHealth: ReportHealth;
+  exceptions: DashboardException[];
+  lateReports: LateReport[];
 }
 
 export interface UserAccess {
   email: string;
   role: string;
-  allowedPropertyId: string;
+  allowedPropertyIds: string[];
 }
 
 export interface SyncReportsResult {
@@ -65,6 +119,7 @@ interface KpiSnapshot {
   occupancy: number | null;
   leads: number | null;
   lastUpdate: string;
+  metrics: DashboardMetric[];
 }
 
 const MVP_PROPERTY_ORDER = ['oasis', 'august', 'la jolla', 'dalecrest'] as const;
@@ -83,6 +138,30 @@ function normalizePropertyName(value: string): string {
 
 function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
+}
+
+export function normalizeRole(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, '_');
+  if (normalized === 'asset') return 'asset_management';
+  return normalized;
+}
+
+function parseAllowedPropertyIds(value: string): string[] {
+  return value.split(',')
+    .map(propertyId => propertyId.trim())
+    .filter(Boolean);
+}
+
+export function canSyncReports(role: string): boolean {
+  return ['setup', 'admin', 'asset_management', 'data_analyst', 'pm'].includes(normalizeRole(role));
+}
+
+export function canManageAdmin(role: string): boolean {
+  return ['setup', 'admin'].includes(normalizeRole(role));
+}
+
+export function canViewPortfolio(role: string): boolean {
+  return ['setup', 'admin', 'asset_management', 'data_analyst', 'pm'].includes(normalizeRole(role));
 }
 
 function mvpPropertyRank(row: unknown[]): number {
@@ -108,10 +187,18 @@ function buildLatestKpiMap(kpiRows: unknown[][]): Map<string, KpiSnapshot> {
     const kpiCode = stringCell(row, 4);
     const value = Number(row[5]);
     const publishedAt = stringCell(row, 8) || '--';
-    const current = latest.get(propertyId) || { occupancy: null, leads: null, lastUpdate: '--' };
+    const current = latest.get(propertyId) || { occupancy: null, leads: null, lastUpdate: '--', metrics: [] };
 
     if (kpiCode === 'OCCUPANCY' && !Number.isNaN(value)) current.occupancy = value;
     if (kpiCode === 'LEADS' && !Number.isNaN(value)) current.leads = value;
+    if (kpiCode && !Number.isNaN(value)) {
+      current.metrics.push({
+        code: kpiCode,
+        value,
+        unit: stringCell(row, 6),
+        publishedAt,
+      });
+    }
     if (publishedAt !== '--' && (current.lastUpdate === '--' || publishedAt > current.lastUpdate)) {
       current.lastUpdate = publishedAt;
     }
@@ -130,15 +217,90 @@ function buildKpisBySource(kpiRows: unknown[][]): Map<string, KpiSnapshot> {
     const sourceReportId = stringCell(row, 7);
     if (!sourceReportId) continue;
 
-    const current = bySource.get(sourceReportId) || { occupancy: null, leads: null, lastUpdate: '--' };
+    const current = bySource.get(sourceReportId) || { occupancy: null, leads: null, lastUpdate: '--', metrics: [] };
     const value = Number(row[5]);
-    if (stringCell(row, 4) === 'OCCUPANCY' && !Number.isNaN(value)) current.occupancy = value;
-    if (stringCell(row, 4) === 'LEADS' && !Number.isNaN(value)) current.leads = value;
-    current.lastUpdate = stringCell(row, 8) || current.lastUpdate;
+    const code = stringCell(row, 4);
+    const publishedAt = stringCell(row, 8) || current.lastUpdate;
+    if (code === 'OCCUPANCY' && !Number.isNaN(value)) current.occupancy = value;
+    if (code === 'LEADS' && !Number.isNaN(value)) current.leads = value;
+    if (code && !Number.isNaN(value)) {
+      current.metrics.push({
+        code,
+        value,
+        unit: stringCell(row, 6),
+        publishedAt,
+      });
+    }
+    current.lastUpdate = publishedAt;
     bySource.set(sourceReportId, current);
   }
 
   return bySource;
+}
+
+export function buildDashboardExtrasFromRows(
+  expectedRows: unknown[][],
+  kpiRows: unknown[][],
+  exceptionRows: unknown[][]
+): Pick<DashboardData, 'financialMetrics' | 'reportHealth' | 'exceptions' | 'lateReports'> {
+  const financialCodes = new Set(['REVENUE', 'EXPENSES', 'NOI', 'CASH_BALANCE', 'DELINQUENCY', 'BUDGET_VARIANCE']);
+  const financialMetrics: FinancialMetric[] = [];
+  const reportHealth: ReportHealth = { received: 0, missing: 0, waiting: 0, late: 0 };
+  const lateReports: LateReport[] = [];
+
+  for (let i = 1; i < kpiRows.length; i++) {
+    const row = kpiRows[i];
+    const code = stringCell(row, 4).trim().toUpperCase().replace(/\s+/g, '_');
+    const value = Number(row[5]);
+    if (!financialCodes.has(code) || Number.isNaN(value)) continue;
+
+    financialMetrics.push({
+      id: stringCell(row, 0),
+      propertyId: stringCell(row, 1),
+      periodStart: stringCell(row, 2),
+      periodEnd: stringCell(row, 3),
+      code,
+      value,
+      unit: stringCell(row, 6),
+      sourceReportId: stringCell(row, 7),
+      publishedAt: stringCell(row, 8),
+    });
+  }
+
+  for (let i = 1; i < expectedRows.length; i++) {
+    const row = expectedRows[i];
+    const status = stringCell(row, 6);
+    if (status === 'RECEIVED') reportHealth.received++;
+    if (status === 'MISSING') reportHealth.missing++;
+    if (status === 'WAITING') reportHealth.waiting++;
+    if (boolCell(row, 8)) {
+      reportHealth.late++;
+      lateReports.push({
+        id: stringCell(row, 0),
+        propertyId: stringCell(row, 1),
+        reportDefinitionId: stringCell(row, 2),
+        periodStart: stringCell(row, 3),
+        periodEnd: stringCell(row, 4),
+        deadline: stringCell(row, 5),
+        status,
+      });
+    }
+  }
+
+  const exceptions: DashboardException[] = exceptionRows.slice(1)
+    .filter(row => stringCell(row, 5).toUpperCase() !== 'RESOLVED')
+    .map(row => ({
+      id: stringCell(row, 0),
+      documentId: stringCell(row, 1),
+      stage: stringCell(row, 2),
+      error: stringCell(row, 3),
+      severity: stringCell(row, 4),
+      status: stringCell(row, 5),
+      assignee: stringCell(row, 6),
+      createdAt: stringCell(row, 7),
+    }));
+
+  return { financialMetrics, reportHealth, exceptions, lateReports };
 }
 
 export function buildPortfolioSummaryFromRows(
@@ -193,7 +355,7 @@ export function buildUserAccessFromRows(userRows: unknown[][], currentEmail: str
   const activeUsers = userRows.slice(1).filter(row => normalizeEmail(stringCell(row, 3)) === 'true');
 
   if (activeUsers.length === 0) {
-    return { email, role: 'setup', allowedPropertyId: '' };
+    return { email, role: 'setup', allowedPropertyIds: [] };
   }
 
   const user = activeUsers.find(row => normalizeEmail(stringCell(row, 0)) === email);
@@ -203,24 +365,35 @@ export function buildUserAccessFromRows(userRows: unknown[][], currentEmail: str
 
   return {
     email,
-    role: normalizeEmail(stringCell(user, 1)),
-    allowedPropertyId: stringCell(user, 2).trim(),
+    role: normalizeRole(stringCell(user, 1)),
+    allowedPropertyIds: parseAllowedPropertyIds(stringCell(user, 2)),
   };
 }
 
 export function filterDashboardDataForAccess(data: DashboardData, access: UserAccess): DashboardData {
-  if (!access.allowedPropertyId) return data;
+  if (access.allowedPropertyIds.length === 0) return data;
+  const allowed = new Set(access.allowedPropertyIds);
+  const timeline = data.timeline.filter(event => allowed.has(event.propertyId));
 
   return {
     ...data,
-    properties: data.properties.filter(property => property.id === access.allowedPropertyId),
-    portfolio: data.portfolio.filter(property => property.id === access.allowedPropertyId),
-    timeline: data.timeline.filter(event => event.propertyId === access.allowedPropertyId),
+    properties: data.properties.filter(property => allowed.has(property.id)),
+    portfolio: data.portfolio.filter(property => allowed.has(property.id)),
+    timeline,
+    financialMetrics: data.financialMetrics.filter(metric => allowed.has(metric.propertyId)),
+    lateReports: data.lateReports.filter(report => allowed.has(report.propertyId)),
+    reportHealth: buildReportHealthFromTimeline(timeline),
   };
 }
 
-export function canSyncReports(role: string): boolean {
-  return ['setup', 'admin', 'asset', 'asset management', 'asset_management', 'pm'].includes(normalizeEmail(role));
+function buildReportHealthFromTimeline(timeline: ReportTimelineEvent[]): ReportHealth {
+  return timeline.reduce<ReportHealth>((health, event) => {
+    if (event.status === 'RECEIVED') health.received++;
+    if (event.status === 'MISSING') health.missing++;
+    if (event.status === 'WAITING') health.waiting++;
+    if (event.late) health.late++;
+    return health;
+  }, { received: 0, missing: 0, waiting: 0, late: 0 });
 }
 
 export function buildReportTimelineFromRows(
@@ -260,7 +433,7 @@ export function buildReportTimelineFromRows(
       const receivedReportId = stringCell(row, 7);
       const definition = definitions.get(stringCell(row, 2)) || { type: stringCell(row, 2), frequency: '' };
       const receivedReport = received.get(receivedReportId) || { receivedAt: '', driveLink: '' };
-      const kpi = kpisBySource.get(receivedReportId) || { occupancy: null, leads: null, lastUpdate: '--' };
+      const kpi = kpisBySource.get(receivedReportId) || { occupancy: null, leads: null, lastUpdate: '--', metrics: [] };
 
       return {
         id: stringCell(row, 0),
@@ -277,6 +450,7 @@ export function buildReportTimelineFromRows(
         driveLink: receivedReport.driveLink,
         occupancy: kpi.occupancy,
         leads: kpi.leads,
+        metrics: kpi.metrics,
       };
     })
     .sort((a, b) => b.deadline.localeCompare(a.deadline));
@@ -303,7 +477,7 @@ export function getCurrentUser(): string {
 
 function getUserAccess(ss: GoogleAppsScript.Spreadsheet.Spreadsheet): UserAccess {
   const usersSheet = ss.getSheetByName('Users');
-  if (!usersSheet) return { email: normalizeEmail(getCurrentUser()), role: 'setup', allowedPropertyId: '' };
+  if (!usersSheet) return { email: normalizeEmail(getCurrentUser()), role: 'setup', allowedPropertyIds: [] };
 
   return buildUserAccessFromRows(usersSheet.getDataRange().getValues(), getCurrentUser());
 }
@@ -339,11 +513,26 @@ export function getReportTimeline(propertyId?: string): ReportTimelineEvent[] {
 export function getDashboardData(propertyId?: string): DashboardData {
   const ss = getConfiguredSpreadsheet();
   const access = getUserAccess(ss);
+  const expectedSheet = ss.getSheetByName('ExpectedReports');
+  const kpiSheet = ss.getSheetByName('KPIHistory');
+  const exceptionsSheet = ss.getSheetByName('ExceptionQueue');
+  const extras = buildDashboardExtrasFromRows(
+    expectedSheet ? expectedSheet.getDataRange().getValues() : [[]],
+    kpiSheet ? kpiSheet.getDataRange().getValues() : [[]],
+    exceptionsSheet ? exceptionsSheet.getDataRange().getValues() : [[]]
+  );
   const data = {
     user: getCurrentUser(),
+    role: access.role,
+    capabilities: {
+      canSync: canSyncReports(access.role),
+      canManageAdmin: canManageAdmin(access.role),
+      canViewPortfolio: canViewPortfolio(access.role),
+    },
     properties: getPropertyList(),
     portfolio: getPortfolioSummary(),
     timeline: getReportTimeline(propertyId),
+    ...extras,
   };
 
   return filterDashboardDataForAccess(data, access);
@@ -378,9 +567,11 @@ export function syncReportsNow(): SyncReportsResult {
     {
       received: requireSheetByName(ss, 'ReceivedReports'),
       exceptions: requireSheetByName(ss, 'ExceptionQueue'),
+      audit: requireSheetByName(ss, 'AuditLog'),
     },
     {
       rootFolderId,
+      actorEmail: access.email,
     }
   );
 

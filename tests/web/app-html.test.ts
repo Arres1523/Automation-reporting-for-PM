@@ -79,9 +79,15 @@ describe('app.html script', () => {
       'portfolio-grid',
       'property-list',
       'property-title',
+      'property-financials',
       'property-timeline',
+      'report-health',
+      'exception-list',
       'control-timeline',
       'status-filter',
+      'current-role',
+      'capability-list',
+      'sync-button',
       'toast',
     ]) {
       elements.set(id, createFakeElement(id, id === 'app-view' ? ['hidden'] : []));

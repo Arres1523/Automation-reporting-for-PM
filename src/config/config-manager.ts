@@ -79,7 +79,7 @@ export function applyUserChange(
   const issues = validateUser({
     email: parsed.email || change.entityId,
     role: parsed.role || '',
-    allowedPropertyId: parsed.allowedPropertyId || '',
+    allowedPropertyId: parsed.allowedPropertyIds || parsed.allowedPropertyId || '',
   });
   const { errors } = collectAllValidationIssues([issues]);
 

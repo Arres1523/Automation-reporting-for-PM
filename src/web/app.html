@@ -244,7 +244,7 @@
       }
       .kpi-row {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: var(--space-sm);
       }
       .kpi {
@@ -261,6 +261,18 @@
         margin-top: var(--space-xs);
         font-size: var(--text-md);
         font-variant-numeric: tabular-nums;
+      }
+      .metric-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: var(--space-sm);
+        margin: var(--space-lg) 0;
+      }
+      .metric-strip .kpi {
+        border: var(--rule);
+        border-radius: var(--radius-sm);
+        background: var(--color-panel);
+        padding: var(--space-md);
       }
       .status {
         display: inline-flex;
@@ -365,6 +377,17 @@
         gap: var(--space-sm);
         margin-top: var(--space-lg);
       }
+      .control-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.35fr) minmax(0, 0.65fr);
+        gap: var(--space-lg);
+        align-items: start;
+      }
+      .admin-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-md);
+      }
       .field {
         min-height: 44px;
         border: 1px solid var(--color-rule);
@@ -403,6 +426,7 @@
         .nav { align-items: flex-start; flex-direction: column; gap: var(--space-md); padding-block: var(--space-lg); }
         .tabs { gap: var(--space-lg); overflow-x: auto; max-width: 100%; }
         .summary-grid, .split { grid-template-columns: 1fr; }
+        .metric-strip, .control-grid, .admin-grid { grid-template-columns: 1fr; }
         .toolbar { align-items: flex-start; flex-direction: column; }
         .toolbar-actions { justify-content: flex-start; }
       }
@@ -469,7 +493,8 @@
             <div class="side-list" id="property-list"></div>
             <div>
               <h3 class="section-title" id="property-title">Select a property</h3>
-              <p class="muted">Timeline of expected reports, archived Drive files, occupancy, and leads.</p>
+              <p class="muted">Timeline of expected reports, archived Drive files, operating KPIs, and financial metrics.</p>
+              <div class="metric-strip" id="property-financials"></div>
               <div class="timeline" id="property-timeline" style="margin-top: var(--space-lg);"></div>
             </div>
           </div>
@@ -488,19 +513,32 @@
               <option value="RECEIVED">RECEIVED</option>
             </select>
           </div>
-          <div class="timeline" id="control-timeline"></div>
+          <div class="control-grid">
+            <div>
+              <div class="metric-strip" id="report-health"></div>
+              <div class="timeline" id="exception-list"></div>
+            </div>
+            <div class="timeline" id="control-timeline"></div>
+          </div>
         </section>
 
         <section class="view hidden" id="view-admin">
           <h2 class="page-title">Admin</h2>
+          <div class="admin-grid">
           <div class="card">
             <h3 class="section-title">Google configuration</h3>
             <p class="muted">Signed in as <strong id="current-user">Loading</strong>.</p>
             <div class="form-row">
-              <div class="login-step"><strong>Required script properties</strong><span>DRIVE_ROOT_FOLDER_ID, PM_NOTIFICATION_EMAIL, ASSET_MANAGEMENT_EMAIL.</span></div>
+              <div class="login-step"><strong>Required script properties</strong><span>SPREADSHEET_ID, DRIVE_ROOT_FOLDER_ID, PM_NOTIFICATION_EMAIL, ASSET_MANAGEMENT_EMAIL.</span></div>
               <div class="login-step"><strong>Allowed properties</strong><span>Oasis, August, La Jolla, Dalecrest.</span></div>
               <div class="login-step"><strong>Triggers</strong><span>Intake every 5 min, status hourly, calendar daily.</span></div>
             </div>
+          </div>
+          <div class="card">
+            <h3 class="section-title">Access</h3>
+            <p class="muted">Role <strong id="current-role">Loading</strong>.</p>
+            <div class="form-row" id="capability-list"></div>
+          </div>
           </div>
         </section>
       </section>
@@ -509,7 +547,18 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script>
-      let dashboardData = { user: '', properties: [], portfolio: [], timeline: [] };
+      let dashboardData = {
+        user: '',
+        role: '',
+        capabilities: { canSync: false, canManageAdmin: false, canViewPortfolio: false },
+        properties: [],
+        portfolio: [],
+        timeline: [],
+        financialMetrics: [],
+        reportHealth: { received: 0, missing: 0, waiting: 0, late: 0 },
+        exceptions: [],
+        lateReports: []
+      };
       let selectedPropertyId = '';
 
       function appsScriptAvailable() {
@@ -553,7 +602,13 @@
             emptyProperty('prop-lj', 'La Jolla'),
             emptyProperty('prop-dalecrest', 'Dalecrest')
           ],
-          timeline: []
+          timeline: [],
+          financialMetrics: [],
+          reportHealth: { received: 0, missing: 0, waiting: 4, late: 0 },
+          exceptions: [],
+          lateReports: [],
+          role: 'connecting',
+          capabilities: { canSync: false, canManageAdmin: false, canViewPortfolio: true }
         };
       }
 
@@ -591,11 +646,14 @@
         document.getElementById('login-view').classList.add('hidden');
         document.getElementById('app-view').classList.remove('hidden');
         document.getElementById('current-user').textContent = dashboardData.user || 'Workspace user';
+        document.getElementById('current-role').textContent = dashboardData.role || 'viewer';
         selectedPropertyId = selectedPropertyId || (dashboardData.properties[0] && dashboardData.properties[0].id) || '';
+        applyCapabilities();
         renderPortfolio();
         renderPropertyList();
         renderPropertyTimeline();
         renderControl();
+        renderAdmin();
       }
 
       function renderDashboardError(message) {
@@ -628,6 +686,7 @@
               kpi('Occupancy', property.occupancy == null ? '--' : property.occupancy + '%') +
               kpi('Leads', property.leads == null ? '--' : property.leads) +
               kpi('Missing', property.missingReports || 0) +
+              kpi('Waiting', property.waitingReports || 0) +
             '</div>' +
           '</article>';
         }).join('');
@@ -660,6 +719,7 @@
         title.textContent = selected ? selected.name : 'Select a property';
 
         const events = (dashboardData.timeline || []).filter(function(event) { return event.propertyId === selectedPropertyId; });
+        renderPropertyFinancials(selectedPropertyId);
         document.getElementById('property-timeline').innerHTML = renderTimeline(events);
       }
 
@@ -668,7 +728,66 @@
         const events = (dashboardData.timeline || []).filter(function(event) {
           return !status || event.status === status;
         });
+        renderReportHealth();
+        renderExceptions();
         document.getElementById('control-timeline').innerHTML = renderTimeline(events);
+      }
+
+      function renderPropertyFinancials(propertyId) {
+        const holder = document.getElementById('property-financials');
+        const metrics = (dashboardData.financialMetrics || []).filter(function(metric) { return metric.propertyId === propertyId; }).slice(0, 4);
+        if (metrics.length === 0) {
+          holder.innerHTML = '<div class="empty">No financial metrics parsed for this property yet.</div>';
+          return;
+        }
+        holder.innerHTML = metrics.map(function(metric) {
+          return kpi(formatMetricCode(metric.code), formatMetricValue(metric));
+        }).join('');
+      }
+
+      function renderReportHealth() {
+        const health = dashboardData.reportHealth || { received: 0, missing: 0, waiting: 0, late: 0 };
+        document.getElementById('report-health').innerHTML = [
+          kpi('Received', health.received || 0),
+          kpi('Missing', health.missing || 0),
+          kpi('Waiting', health.waiting || 0),
+          kpi('Late', health.late || 0)
+        ].join('');
+      }
+
+      function renderExceptions() {
+        const exceptions = (dashboardData.exceptions || []).slice(0, 6);
+        const holder = document.getElementById('exception-list');
+        if (exceptions.length === 0) {
+          holder.innerHTML = '<div class="empty">No open exceptions.</div>';
+          return;
+        }
+        holder.innerHTML = exceptions.map(function(item) {
+          return '<article class="timeline-item">' +
+            '<div class="timeline-date">' + escapeHtml(formatDate(item.createdAt)) + '</div>' +
+            '<div class="timeline-main">' +
+              '<h3>' + escapeHtml(item.stage || 'Exception') + '</h3>' +
+              '<p class="timeline-copy">' + escapeHtml(item.error || '--') + '</p>' +
+              '<div class="chips"><span class="chip">' + escapeHtml(item.severity || 'ERROR') + '</span><span class="chip">' + escapeHtml(item.assignee || 'admin') + '</span></div>' +
+            '</div>' +
+          '</article>';
+        }).join('');
+      }
+
+      function renderAdmin() {
+        const capabilities = dashboardData.capabilities || {};
+        document.getElementById('capability-list').innerHTML = [
+          capability('Portfolio access', capabilities.canViewPortfolio),
+          capability('Gmail to Drive sync', capabilities.canSync),
+          capability('Admin controls', capabilities.canManageAdmin)
+        ].join('');
+      }
+
+      function applyCapabilities() {
+        const syncButton = document.getElementById('sync-button');
+        const canSync = !!(dashboardData.capabilities && dashboardData.capabilities.canSync);
+        syncButton.disabled = !canSync;
+        syncButton.title = canSync ? 'Sync Gmail reports into Drive' : 'This role can view the dashboard but cannot sync reports';
       }
 
       function renderTimeline(events) {
@@ -685,6 +804,7 @@
                 statusBadge(event.status) +
                 '<span class="chip">Occupancy ' + escapeHtml(event.occupancy == null ? '--' : event.occupancy + '%') + '</span>' +
                 '<span class="chip">Leads ' + escapeHtml(event.leads == null ? '--' : event.leads) + '</span>' +
+                renderMetricChips(event.metrics || []) +
                 '<span class="chip">' + escapeHtml(event.frequency || 'Frequency --') + '</span>' +
                 (event.late ? '<span class="chip">Late</span>' : '') +
               '</div>' +
@@ -696,6 +816,10 @@
 
       function syncReports() {
         const button = document.getElementById('sync-button');
+        if (dashboardData.capabilities && !dashboardData.capabilities.canSync) {
+          showToast('This role can view reports but cannot sync Gmail to Drive.');
+          return;
+        }
         button.disabled = true;
         button.dataset.state = 'loading';
         button.textContent = 'Syncing';
@@ -730,6 +854,29 @@
 
       function kpi(label, value) {
         return '<div class="kpi"><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(String(value)) + '</strong></div>';
+      }
+
+      function capability(label, enabled) {
+        return '<div class="login-step"><strong>' + escapeHtml(label) + '</strong><span>' + escapeHtml(enabled ? 'Enabled' : 'Read only') + '</span></div>';
+      }
+
+      function renderMetricChips(metrics) {
+        return metrics
+          .filter(function(metric) { return metric.code !== 'OCCUPANCY' && metric.code !== 'LEADS'; })
+          .slice(0, 3)
+          .map(function(metric) {
+            return '<span class="chip">' + escapeHtml(formatMetricCode(metric.code)) + ' ' + escapeHtml(formatMetricValue(metric)) + '</span>';
+          }).join('');
+      }
+
+      function formatMetricCode(code) {
+        return String(code || 'Metric').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, function(letter) { return letter.toUpperCase(); });
+      }
+
+      function formatMetricValue(metric) {
+        const value = Number(metric.value);
+        const displayValue = Number.isNaN(value) ? '--' : value.toLocaleString();
+        return metric.unit ? displayValue + ' ' + metric.unit : displayValue;
       }
 
       function statusBadge(status) {
