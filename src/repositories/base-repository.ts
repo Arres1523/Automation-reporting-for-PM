@@ -1,4 +1,4 @@
-export class SheetRepository<T extends Record<string, unknown>> {
+export class SheetRepository<T extends object> {
   protected headers: string[];
   protected idColumn: string;
 
@@ -16,7 +16,8 @@ export class SheetRepository<T extends Record<string, unknown>> {
   }
 
   protected entityToRow(entity: T): unknown[] {
-    return this.headers.map((header) => entity[header]);
+    const values = entity as Record<string, unknown>;
+    return this.headers.map((header) => values[header]);
   }
 
   findById(sheet: GoogleAppsScript.Spreadsheet.Sheet, id: string): T | null {
