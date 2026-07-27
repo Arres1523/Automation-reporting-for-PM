@@ -17,6 +17,7 @@ function copyHtmlPlugin() {
         for (const file of files) {
           fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
         }
+        fs.copyFileSync(path.join(srcDir, 'app.html'), path.join(destDir, 'index.html'));
       });
     },
   };
