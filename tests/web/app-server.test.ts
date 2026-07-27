@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildPortfolioSummaryFromRows,
+  buildPropertyListFromRows,
   buildReportTimelineFromRows,
 } from '../../src/web/app-server';
 
@@ -8,6 +9,9 @@ const properties = [
   ['id', 'code', 'name', 'status', 'timezone', 'driveFolderId', 'contacts'],
   ['prop-lj', 'LJ', 'La Jolla', 'active', 'America/New_York', 'folder-lj', 'pm@example.com'],
   ['prop-oasis', 'OAS', 'Oasis', 'active', 'America/New_York', 'folder-oasis', 'pm@example.com'],
+  ['prop-august', 'AUG', 'August', 'active', 'America/New_York', 'folder-august', 'pm@example.com'],
+  ['prop-dalecrest', 'DAL', 'Dalecrest', 'active', 'America/New_York', 'folder-dalecrest', 'pm@example.com'],
+  ['prop-other', 'OTH', 'Other Property', 'active', 'America/New_York', 'folder-other', 'pm@example.com'],
 ];
 
 const definitions = [
@@ -34,8 +38,32 @@ const kpis = [
 ];
 
 describe('buildPortfolioSummaryFromRows', () => {
-  it('summarizes received, missing, and late report counts per active property', () => {
+  it('summarizes only the four MVP properties in the operating order', () => {
     expect(buildPortfolioSummaryFromRows(properties, kpis, expected)).toEqual([
+      {
+        id: 'prop-oasis',
+        name: 'Oasis',
+        occupancy: null,
+        leads: null,
+        status: 'MISSING',
+        late: false,
+        lastUpdate: '--',
+        receivedReports: 0,
+        missingReports: 1,
+        waitingReports: 0,
+      },
+      {
+        id: 'prop-august',
+        name: 'August',
+        occupancy: null,
+        leads: null,
+        status: 'RECEIVED',
+        late: false,
+        lastUpdate: '--',
+        receivedReports: 0,
+        missingReports: 0,
+        waitingReports: 0,
+      },
       {
         id: 'prop-lj',
         name: 'La Jolla',
@@ -49,17 +77,28 @@ describe('buildPortfolioSummaryFromRows', () => {
         waitingReports: 0,
       },
       {
-        id: 'prop-oasis',
-        name: 'Oasis',
+        id: 'prop-dalecrest',
+        name: 'Dalecrest',
         occupancy: null,
         leads: null,
-        status: 'MISSING',
+        status: 'RECEIVED',
         late: false,
         lastUpdate: '--',
         receivedReports: 0,
-        missingReports: 1,
+        missingReports: 0,
         waitingReports: 0,
       },
+    ]);
+  });
+});
+
+describe('buildPropertyListFromRows', () => {
+  it('returns only Oasis, August, La Jolla, and Dalecrest', () => {
+    expect(buildPropertyListFromRows(properties)).toEqual([
+      { id: 'prop-oasis', name: 'Oasis' },
+      { id: 'prop-august', name: 'August' },
+      { id: 'prop-lj', name: 'La Jolla' },
+      { id: 'prop-dalecrest', name: 'Dalecrest' },
     ]);
   });
 });

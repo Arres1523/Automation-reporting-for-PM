@@ -2,6 +2,13 @@
   {
     "date": "2026-07-27",
     "macrostructure": "Workbench",
+    "theme": "screenshot-match",
+    "enrichment": "none",
+    "brief": "Google login first, four-property Asset Management dashboard matching provided dark-nav screenshot"
+  },
+  {
+    "date": "2026-07-27",
+    "macrostructure": "Workbench",
     "theme": "Cobalt",
     "enrichment": "none",
     "brief": "Internal Asset Management console for Gmail to Drive report sync and property timeline"

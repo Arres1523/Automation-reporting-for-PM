@@ -61,12 +61,32 @@ interface KpiSnapshot {
   lastUpdate: string;
 }
 
+const MVP_PROPERTY_ORDER = ['oasis', 'august', 'la jolla', 'dalecrest'] as const;
+
 function stringCell(row: unknown[], index: number): string {
   return String(row[index] ?? '');
 }
 
 function boolCell(row: unknown[], index: number): boolean {
   return String(row[index] ?? '').toLowerCase() === 'true';
+}
+
+function normalizePropertyName(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function mvpPropertyRank(row: unknown[]): number {
+  const candidates = [
+    normalizePropertyName(stringCell(row, 0)),
+    normalizePropertyName(stringCell(row, 1)),
+    normalizePropertyName(stringCell(row, 2)),
+  ].join(' ');
+
+  return MVP_PROPERTY_ORDER.findIndex(propertyName => candidates.includes(propertyName));
+}
+
+function isMvpProperty(row: unknown[]): boolean {
+  return mvpPropertyRank(row) >= 0;
 }
 
 function buildLatestKpiMap(kpiRows: unknown[][]): Map<string, KpiSnapshot> {
@@ -119,8 +139,8 @@ export function buildPortfolioSummaryFromRows(
   const kpisByProperty = buildLatestKpiMap(kpiRows);
 
   return propertyRows.slice(1).filter(row => (
-    String(row[3]).toLowerCase() === 'active'
-  )).map(row => {
+    String(row[3]).toLowerCase() === 'active' && isMvpProperty(row)
+  )).sort((a, b) => mvpPropertyRank(a) - mvpPropertyRank(b)).map(row => {
     const propertyId = stringCell(row, 0);
     const counts = { received: 0, missing: 0, waiting: 0, late: false };
 
@@ -149,6 +169,13 @@ export function buildPortfolioSummaryFromRows(
       waitingReports: counts.waiting,
     };
   });
+}
+
+export function buildPropertyListFromRows(propertyRows: unknown[][]): Array<{ id: string; name: string }> {
+  return propertyRows.slice(1)
+    .filter(row => String(row[3]).toLowerCase() === 'active' && isMvpProperty(row))
+    .sort((a, b) => mvpPropertyRank(a) - mvpPropertyRank(b))
+    .map(row => ({ id: stringCell(row, 0), name: stringCell(row, 2) }));
 }
 
 export function buildReportTimelineFromRows(
@@ -234,16 +261,7 @@ export function getPropertyList(): Array<{ id: string; name: string }> {
   const sheet = ss.getSheetByName('Properties');
   if (!sheet) return [];
 
-  const data = sheet.getDataRange().getValues();
-  const props: Array<{ id: string; name: string }> = [];
-
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][3]).toLowerCase() === 'active') {
-      props.push({ id: String(data[i][0]), name: String(data[i][2]) });
-    }
-  }
-
-  return props;
+  return buildPropertyListFromRows(sheet.getDataRange().getValues());
 }
 
 export function getReportTimeline(propertyId?: string): ReportTimelineEvent[] {
