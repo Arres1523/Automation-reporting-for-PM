@@ -521,32 +521,55 @@
         button.disabled = true;
         button.dataset.state = 'loading';
         button.textContent = 'Connecting';
+        renderDashboard(buildPendingDashboard('Connecting to Google'));
 
         if (!appsScriptAvailable()) {
-          renderDashboard({
-            user: 'Preview mode',
-            properties: [
-              { id: 'prop-oasis', name: 'Oasis' },
-              { id: 'prop-august', name: 'August' },
-              { id: 'prop-lj', name: 'La Jolla' },
-              { id: 'prop-dalecrest', name: 'Dalecrest' }
-            ],
-            portfolio: [],
-            timeline: []
-          });
+          showToast('Preview mode. Deploy to Apps Script for Google login.');
           return;
         }
 
         google.script.run
           .withSuccessHandler(renderDashboard)
           .withFailureHandler(function(error) {
-            button.disabled = false;
-            button.dataset.state = '';
-            button.textContent = 'Continue with Google';
+            renderDashboardError('Google did not authorize the app. Open the Apps Script deployment and approve Gmail, Drive, Sheets, and Mail access.');
             showToast('Google login failed. Review Apps Script authorization.');
             console.error(error);
           })
           .getDashboardData(null);
+      }
+
+      function buildPendingDashboard(userLabel) {
+        return {
+          user: userLabel,
+          properties: [
+            { id: 'prop-oasis', name: 'Oasis' },
+            { id: 'prop-august', name: 'August' },
+            { id: 'prop-lj', name: 'La Jolla' },
+            { id: 'prop-dalecrest', name: 'Dalecrest' }
+          ],
+          portfolio: [
+            emptyProperty('prop-oasis', 'Oasis'),
+            emptyProperty('prop-august', 'August'),
+            emptyProperty('prop-lj', 'La Jolla'),
+            emptyProperty('prop-dalecrest', 'Dalecrest')
+          ],
+          timeline: []
+        };
+      }
+
+      function emptyProperty(id, name) {
+        return {
+          id: id,
+          name: name,
+          occupancy: null,
+          leads: null,
+          status: 'WAITING',
+          late: false,
+          lastUpdate: '--',
+          receivedReports: 0,
+          missingReports: 0,
+          waitingReports: 0
+        };
       }
 
       function loadDashboard() {
@@ -573,6 +596,12 @@
         renderPropertyList();
         renderPropertyTimeline();
         renderControl();
+      }
+
+      function renderDashboardError(message) {
+        dashboardData = buildPendingDashboard('Authorization required');
+        renderDashboard(dashboardData);
+        document.getElementById('portfolio-grid').innerHTML = '<div class="empty">' + escapeHtml(message) + '</div>';
       }
 
       function showView(viewName) {
