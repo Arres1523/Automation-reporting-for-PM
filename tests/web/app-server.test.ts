@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildUserAccessFromRows,
+  canSyncReports,
+  filterDashboardDataForAccess,
   buildPortfolioSummaryFromRows,
   buildPropertyListFromRows,
   buildReportTimelineFromRows,
@@ -100,6 +103,52 @@ describe('buildPropertyListFromRows', () => {
       { id: 'prop-lj', name: 'La Jolla' },
       { id: 'prop-dalecrest', name: 'Dalecrest' },
     ]);
+  });
+});
+
+describe('dashboard access control', () => {
+  const users = [
+    ['email', 'role', 'allowedPropertyId', 'active'],
+    ['asset@valoriscapitalpartners.com', 'asset_management', '', 'true'],
+    ['owner@example.com', 'owner', 'prop-lj', 'true'],
+    ['inactive@example.com', 'admin', '', 'false'],
+  ];
+
+  it('authorizes active users by email case-insensitively', () => {
+    expect(buildUserAccessFromRows(users, 'ASSET@ValorisCapitalPartners.com')).toEqual({
+      email: 'asset@valoriscapitalpartners.com',
+      role: 'asset_management',
+      allowedPropertyId: '',
+    });
+  });
+
+  it('denies users missing from an active allowlist', () => {
+    expect(() => buildUserAccessFromRows(users, 'unknown@example.com')).toThrow('Access denied');
+  });
+
+  it('filters dashboard data to an owner property when allowedPropertyId is set', () => {
+    const data = {
+      user: 'owner@example.com',
+      properties: buildPropertyListFromRows(properties),
+      portfolio: buildPortfolioSummaryFromRows(properties, kpis, expected),
+      timeline: buildReportTimelineFromRows(properties, definitions, expected, received, kpis),
+    };
+
+    const filtered = filterDashboardDataForAccess(data, {
+      email: 'owner@example.com',
+      role: 'owner',
+      allowedPropertyId: 'prop-lj',
+    });
+
+    expect(filtered.properties).toEqual([{ id: 'prop-lj', name: 'La Jolla' }]);
+    expect(filtered.portfolio.map(property => property.id)).toEqual(['prop-lj']);
+    expect(filtered.timeline.map(event => event.propertyId)).toEqual(['prop-lj']);
+  });
+
+  it('keeps report sync limited to operational roles', () => {
+    expect(canSyncReports('asset_management')).toBe(true);
+    expect(canSyncReports('pm')).toBe(true);
+    expect(canSyncReports('owner')).toBe(false);
   });
 });
 

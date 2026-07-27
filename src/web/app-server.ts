@@ -1,7 +1,7 @@
 import { processInbox } from '../intake/intake-orchestrator';
 import { checkAndSendReminders } from '../status/reminder-service';
 import { evaluateReportStatuses } from '../status/status-engine';
-import { buildClassificationRulesFromRows, requireSheetByName } from '../runtime/app-script-runtime';
+import { buildClassificationRulesFromRows, getConfiguredSpreadsheet, requireSheetByName } from '../runtime/app-script-runtime';
 
 export function renderApp(): GoogleAppsScript.HTML.HtmlOutput {
   const template = HtmlService.createTemplateFromFile('web/app');
@@ -45,6 +45,12 @@ export interface DashboardData {
   timeline: ReportTimelineEvent[];
 }
 
+export interface UserAccess {
+  email: string;
+  role: string;
+  allowedPropertyId: string;
+}
+
 export interface SyncReportsResult {
   processed: number;
   errors: number;
@@ -73,6 +79,10 @@ function boolCell(row: unknown[], index: number): boolean {
 
 function normalizePropertyName(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 function mvpPropertyRank(row: unknown[]): number {
@@ -178,6 +188,41 @@ export function buildPropertyListFromRows(propertyRows: unknown[][]): Array<{ id
     .map(row => ({ id: stringCell(row, 0), name: stringCell(row, 2) }));
 }
 
+export function buildUserAccessFromRows(userRows: unknown[][], currentEmail: string): UserAccess {
+  const email = normalizeEmail(currentEmail);
+  const activeUsers = userRows.slice(1).filter(row => normalizeEmail(stringCell(row, 3)) === 'true');
+
+  if (activeUsers.length === 0) {
+    return { email, role: 'setup', allowedPropertyId: '' };
+  }
+
+  const user = activeUsers.find(row => normalizeEmail(stringCell(row, 0)) === email);
+  if (!user) {
+    throw new Error(`Access denied for ${currentEmail}. Add this email as active in the Users sheet.`);
+  }
+
+  return {
+    email,
+    role: normalizeEmail(stringCell(user, 1)),
+    allowedPropertyId: stringCell(user, 2).trim(),
+  };
+}
+
+export function filterDashboardDataForAccess(data: DashboardData, access: UserAccess): DashboardData {
+  if (!access.allowedPropertyId) return data;
+
+  return {
+    ...data,
+    properties: data.properties.filter(property => property.id === access.allowedPropertyId),
+    portfolio: data.portfolio.filter(property => property.id === access.allowedPropertyId),
+    timeline: data.timeline.filter(event => event.propertyId === access.allowedPropertyId),
+  };
+}
+
+export function canSyncReports(role: string): boolean {
+  return ['setup', 'admin', 'asset', 'asset management', 'asset_management', 'pm'].includes(normalizeEmail(role));
+}
+
 export function buildReportTimelineFromRows(
   propertyRows: unknown[][],
   definitionRows: unknown[][],
@@ -238,7 +283,7 @@ export function buildReportTimelineFromRows(
 }
 
 export function getPortfolioSummary(): PortfolioProperty[] {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getConfiguredSpreadsheet();
   const propsSheet = ss.getSheetByName('Properties');
   if (!propsSheet) return [];
 
@@ -256,8 +301,15 @@ export function getCurrentUser(): string {
   return Session.getActiveUser().getEmail();
 }
 
+function getUserAccess(ss: GoogleAppsScript.Spreadsheet.Spreadsheet): UserAccess {
+  const usersSheet = ss.getSheetByName('Users');
+  if (!usersSheet) return { email: normalizeEmail(getCurrentUser()), role: 'setup', allowedPropertyId: '' };
+
+  return buildUserAccessFromRows(usersSheet.getDataRange().getValues(), getCurrentUser());
+}
+
 export function getPropertyList(): Array<{ id: string; name: string }> {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getConfiguredSpreadsheet();
   const sheet = ss.getSheetByName('Properties');
   if (!sheet) return [];
 
@@ -265,7 +317,7 @@ export function getPropertyList(): Array<{ id: string; name: string }> {
 }
 
 export function getReportTimeline(propertyId?: string): ReportTimelineEvent[] {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getConfiguredSpreadsheet();
   const propsSheet = ss.getSheetByName('Properties');
   const defsSheet = ss.getSheetByName('ReportDefinitions');
   const expectedSheet = ss.getSheetByName('ExpectedReports');
@@ -285,16 +337,25 @@ export function getReportTimeline(propertyId?: string): ReportTimelineEvent[] {
 }
 
 export function getDashboardData(propertyId?: string): DashboardData {
-  return {
+  const ss = getConfiguredSpreadsheet();
+  const access = getUserAccess(ss);
+  const data = {
     user: getCurrentUser(),
     properties: getPropertyList(),
     portfolio: getPortfolioSummary(),
     timeline: getReportTimeline(propertyId),
   };
+
+  return filterDashboardDataForAccess(data, access);
 }
 
 export function syncReportsNow(): SyncReportsResult {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getConfiguredSpreadsheet();
+  const access = getUserAccess(ss);
+  if (!canSyncReports(access.role)) {
+    throw new Error(`Access denied for ${access.email}. This role can view the dashboard but cannot sync reports.`);
+  }
+
   const reportDefinitionsSheet = requireSheetByName(ss, 'ReportDefinitions');
   const rules = buildClassificationRulesFromRows(reportDefinitionsSheet.getDataRange().getValues());
   const scriptProperties = PropertiesService.getScriptProperties();

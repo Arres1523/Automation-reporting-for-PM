@@ -44,14 +44,26 @@ export function getTriggerSpecs(): TriggerSpec[] {
   ];
 }
 
+export function getConfiguredSpreadsheet(): GoogleAppsScript.Spreadsheet.Spreadsheet {
+  const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (spreadsheetId) return SpreadsheetApp.openById(spreadsheetId);
+
+  const activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  if (!activeSpreadsheet) {
+    throw new Error('Missing script property: SPREADSHEET_ID');
+  }
+
+  return activeSpreadsheet;
+}
+
 export function setupSpreadsheet(): string {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = getConfiguredSpreadsheet();
   ensureSheetsExist(spreadsheet);
   return spreadsheet.getId();
 }
 
 export function processIntake(): GoogleAppsScript.Content.TextOutput {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = getConfiguredSpreadsheet();
   const reportDefinitionsSheet = requireSheetByName(spreadsheet, 'ReportDefinitions');
   const rules = buildClassificationRulesFromRows(reportDefinitionsSheet.getDataRange().getValues());
   const result = processInbox(
@@ -70,7 +82,7 @@ export function processIntake(): GoogleAppsScript.Content.TextOutput {
 }
 
 export function evaluateStatuses(): GoogleAppsScript.Content.TextOutput {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = getConfiguredSpreadsheet();
   const transitions = evaluateReportStatuses(requireSheetByName(spreadsheet, 'ExpectedReports'));
 
   return ContentService.createTextOutput(JSON.stringify({ transitions }))
@@ -78,7 +90,7 @@ export function evaluateStatuses(): GoogleAppsScript.Content.TextOutput {
 }
 
 export function extendCalendar(): GoogleAppsScript.Content.TextOutput {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = getConfiguredSpreadsheet();
   const created = extendExpectedReportWindows(
     requireSheetByName(spreadsheet, 'ReportDefinitions'),
     requireSheetByName(spreadsheet, 'ExpectedReports')

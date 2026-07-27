@@ -12,9 +12,9 @@
     "build:prod": "node esbuild.config.mjs --production",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy:dev": "cp .clasp-dev.json .clasp.json && clasp push && clasp deploy -d dev && rm .clasp.json",
-    "deploy:staging": "cp .clasp-staging.json .clasp.json && clasp push && clasp deploy -d staging && rm .clasp.json",
-    "deploy:prod": "cp .clasp-prod.json .clasp.json && clasp push && clasp deploy -d prod && rm .clasp.json",
+    "deploy:dev": "cp .clasp-dev.json .clasp.json && clasp push --force && clasp deploy -d dev && rm .clasp.json",
+    "deploy:staging": "cp .clasp-staging.json .clasp.json && clasp push --force && clasp deploy -d staging && rm .clasp.json",
+    "deploy:prod": "cp .clasp-prod.json .clasp.json && clasp push --force && clasp deploy -d prod && rm .clasp.json",
     "lint": "tsc --noEmit"
   },
   "repository": {

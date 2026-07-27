@@ -24,18 +24,20 @@ function onInstall(): void {
 
 const appsScriptGlobals = globalThis as unknown as Record<string, unknown>;
 
-appsScriptGlobals.doGet = doGet;
-appsScriptGlobals.onInstall = onInstall;
-appsScriptGlobals.setupSpreadsheet = setupSpreadsheet;
-appsScriptGlobals.processIntake = processIntake;
-appsScriptGlobals.evaluateStatuses = evaluateStatuses;
-appsScriptGlobals.extendCalendar = extendCalendar;
-appsScriptGlobals.installDevTriggers = installDevTriggers;
-appsScriptGlobals.getCurrentUser = getCurrentUser;
-appsScriptGlobals.getPortfolioSummary = getPortfolioSummary;
-appsScriptGlobals.getPropertyList = getPropertyList;
-appsScriptGlobals.getReportTimeline = getReportTimeline;
-appsScriptGlobals.getDashboardData = getDashboardData;
-appsScriptGlobals.syncReportsNow = syncReportsNow;
+appsScriptGlobals.__valorisReporting = {
+  doGet,
+  onInstall,
+  setupSpreadsheet,
+  processIntake,
+  evaluateStatuses,
+  extendCalendar,
+  installDevTriggers,
+  getCurrentUser,
+  getPortfolioSummary,
+  getPropertyList,
+  getReportTimeline,
+  getDashboardData,
+  syncReportsNow,
+};
 
 export { doGet, onInstall };
