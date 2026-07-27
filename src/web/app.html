@@ -638,8 +638,13 @@
         const properties = dashboardData.properties || [];
         list.innerHTML = properties.map(function(property) {
           const active = property.id === selectedPropertyId ? ' is-active' : '';
-          return '<button class="property-button' + active + '" type="button" onclick="selectProperty(\\'' + escapeJs(property.id) + '\\')">' + escapeHtml(property.name) + '</button>';
+          return '<button class="property-button' + active + '" type="button" data-property-id="' + escapeHtml(property.id) + '">' + escapeHtml(property.name) + '</button>';
         }).join('');
+        list.querySelectorAll('[data-property-id]').forEach(function(button) {
+          button.addEventListener('click', function() {
+            selectProperty(button.getAttribute('data-property-id') || '');
+          });
+        });
       }
 
       function selectProperty(propertyId) {
@@ -758,9 +763,6 @@
           .replace(/'/g, '&#039;');
       }
 
-      function escapeJs(value) {
-        return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-      }
     </script>
   </body>
 </html>
