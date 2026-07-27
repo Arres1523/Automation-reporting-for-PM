@@ -1,7 +1,7 @@
-import { renderHealthPage } from './web/main';
+import { renderApp } from './web/app-server';
 
 function doGet(): GoogleAppsScript.HTML.HtmlOutput {
-  return renderHealthPage();
+  return renderApp();
 }
 
 function onInstall(): void {

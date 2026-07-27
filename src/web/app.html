@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #333; }
+      .nav { background: #1a1a2e; color: white; padding: 0 1.5rem; display: flex; align-items: center; height: 56px; gap: 2rem; }
+      .nav h1 { font-size: 1.1rem; font-weight: 600; }
+      .nav a { color: #a0a0b8; text-decoration: none; font-size: 0.875rem; padding: 0.5rem 0; cursor: pointer; }
+      .nav a.active { color: white; border-bottom: 2px solid #4a90d9; }
+      .nav a:hover { color: white; }
+      .content { max-width: 1200px; margin: 1.5rem auto; padding: 0 1.5rem; }
+      .card { background: white; border-radius: 8px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem; }
+      .card h2 { font-size: 1rem; color: #666; margin-bottom: 0.5rem; }
+      .card .value { font-size: 2rem; font-weight: 700; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+      .status-badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+      .status-waiting { background: #fff3cd; color: #856404; }
+      .status-received { background: #d4edda; color: #155724; }
+      .status-missing { background: #f8d7da; color: #721c24; }
+      .late-indicator { color: #dc3545; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem; }
+      table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+      th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
+      th { color: #666; font-weight: 600; }
+      select, input { padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.875rem; }
+      .filters { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+      .hidden { display: none; }
+      .admin-section { margin-bottom: 1.5rem; }
+      .admin-section h3 { margin-bottom: 0.75rem; color: #1a1a2e; }
+    </style>
+  </head>
+  <body>
+    <div class="nav">
+      <h1>Valoris Reporting</h1>
+      <a class="active" onclick="showView('portfolio')" id="nav-portfolio">Portfolio</a>
+      <a onclick="showView('property')" id="nav-property">Property</a>
+      <a onclick="showView('control')" id="nav-control">Control</a>
+      <a onclick="showView('admin')" id="nav-admin">Admin</a>
+    </div>
+    <div class="content">
+      <div id="view-portfolio" class="view">
+        <h2 style="margin-bottom:1rem">Portfolio Overview</h2>
+        <div class="grid" id="portfolio-grid">
+          <p>Loading portfolio data...</p>
+        </div>
+      </div>
+      <div id="view-property" class="view hidden">
+        <h2 style="margin-bottom:1rem">Property Detail</h2>
+        <div class="filters">
+          <select id="property-select" onchange="loadPropertyView()"></select>
+        </div>
+        <div id="property-detail"></div>
+      </div>
+      <div id="view-control" class="view hidden">
+        <h2 style="margin-bottom:1rem">Reporting Control</h2>
+        <div class="filters">
+          <select id="control-property" onchange="loadControlView()"><option value="">All Properties</option></select>
+          <select id="control-status" onchange="loadControlView()"><option value="">All Status</option><option value="WAITING">WAITING</option><option value="RECEIVED">RECEIVED</option><option value="MISSING">MISSING</option></select>
+        </div>
+        <div id="control-table"></div>
+      </div>
+      <div id="view-admin" class="view hidden">
+        <h2 style="margin-bottom:1rem">Administration</h2>
+        <div id="admin-content"><p>Admin panel — config and exception management.</p></div>
+      </div>
+    </div>
+    <script>
+      let currentUser = null;
+      let properties = [];
+      let expectedReports = [];
+
+      function showView(name) {
+        document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+        document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+        document.getElementById('view-' + name).classList.remove('hidden');
+        document.getElementById('nav-' + name).classList.add('active');
+        if (name === 'portfolio') loadPortfolio();
+        if (name === 'control') loadControlView();
+      }
+
+      function loadPortfolio() {
+        google.script.run.withSuccessHandler(renderPortfolio).getPortfolioSummary();
+      }
+
+      function renderPortfolio(data) {
+        const grid = document.getElementById('portfolio-grid');
+        if (!data || data.length === 0) {
+          grid.innerHTML = '<p>No portfolio data available.</p>';
+          return;
+        }
+        grid.innerHTML = data.map(p => `
+          <div class="card">
+            <h2>${p.name}</h2>
+            <div class="value">${p.occupancy != null ? p.occupancy + '%' : '--'}</div>
+            <div style="margin-top:0.5rem;font-size:0.875rem;color:#666">
+              Leads: ${p.leads != null ? p.leads : '--'}
+              <span class="status-badge status-${p.status.toLowerCase()}">${p.status}</span>
+              ${p.late ? '<span class="late-indicator">● Late</span>' : ''}
+            </div>
+            <div style="font-size:0.75rem;color:#999;margin-top:0.25rem">Updated: ${p.lastUpdate || '--'}</div>
+          </div>
+        `).join('');
+      }
+
+      function loadPropertyView() { /* populated by server */ }
+      function loadControlView() { /* populated by server */ }
+
+      google.script.run.withSuccessHandler(function(user) {
+        currentUser = user;
+        loadPortfolio();
+      }).getCurrentUser();
+    </script>
+  </body>
+</html>
