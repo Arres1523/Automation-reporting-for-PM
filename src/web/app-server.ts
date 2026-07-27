@@ -243,7 +243,17 @@ export function buildDashboardExtrasFromRows(
   kpiRows: unknown[][],
   exceptionRows: unknown[][]
 ): Pick<DashboardData, 'financialMetrics' | 'reportHealth' | 'exceptions' | 'lateReports'> {
-  const financialCodes = new Set(['REVENUE', 'EXPENSES', 'NOI', 'CASH_BALANCE', 'DELINQUENCY', 'BUDGET_VARIANCE']);
+  const financialCodes = new Set([
+    'REVENUE',
+    'EXPENSES',
+    'NOI',
+    'CASH_BALANCE',
+    'DELINQUENCY',
+    'BUDGET_VARIANCE',
+    'SCHEDULED_RENT',
+    'IN_PLACE_RENT',
+    'COLLECTION_RATE',
+  ]);
   const financialMetrics: FinancialMetric[] = [];
   const reportHealth: ReportHealth = { received: 0, missing: 0, waiting: 0, late: 0 };
   const lateReports: LateReport[] = [];
@@ -568,6 +578,7 @@ export function syncReportsNow(): SyncReportsResult {
       received: requireSheetByName(ss, 'ReceivedReports'),
       exceptions: requireSheetByName(ss, 'ExceptionQueue'),
       audit: requireSheetByName(ss, 'AuditLog'),
+      kpiHistory: requireSheetByName(ss, 'KPIHistory'),
     },
     {
       rootFolderId,

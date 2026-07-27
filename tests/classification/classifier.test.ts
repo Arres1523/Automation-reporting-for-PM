@@ -79,6 +79,13 @@ describe('extractPeriod', () => {
     expect(period).toBe('2026-07-27');
   });
 
+  it('extracts dotted and slash dates from real Gmail report subjects', () => {
+    expect(extractPeriod('Dalecrest Place Daily Report 2026.07.24', [])).toBe('2026-07-24');
+    expect(extractPeriod('Oasis at San Marco Daily Report_07.23.2026', [])).toBe('2026-07-23');
+    expect(extractPeriod('LJP - Week Ending - 7/26/26', [])).toBe('2026-07-26');
+    expect(extractPeriod('August Friendswood DLR 7.18.26', [])).toBe('2026-07-18');
+  });
+
   it('should return null when no date found', () => {
     const period = extractPeriod('No dates here', [{ name: 'file.pdf' }]);
     expect(period).toBeNull();

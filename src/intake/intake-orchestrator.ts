@@ -1,6 +1,6 @@
 import { searchMessages, markAsProcessed, markAsError, isAlreadyProcessed } from './gmail-service';
 import { classifyMessage, ClassificationRule } from '../classification/classifier';
-import { archiveAttachment } from '../storage/drive-archiver';
+import { archiveAttachment, archiveMessageBody } from '../storage/drive-archiver';
 import { logException } from './exception-handler';
 import { createAuditLogEntry, writeAuditLog } from '../audit/audit-log';
 
@@ -17,6 +17,7 @@ export function processInbox(
     received: GoogleAppsScript.Spreadsheet.Sheet;
     exceptions: GoogleAppsScript.Spreadsheet.Sheet;
     audit?: GoogleAppsScript.Spreadsheet.Sheet;
+    kpiHistory?: GoogleAppsScript.Spreadsheet.Sheet;
   },
   driveConfig: {
     rootFolderId: string;
@@ -25,7 +26,7 @@ export function processInbox(
 ): IntakeResult {
   const result: IntakeResult = { processed: 0, errors: 0, skipped: 0, details: [] };
 
-  const messages = searchMessages({});
+  const messages = searchMessages(buildIntakeSearchQuery());
 
   for (const msg of messages) {
     // Check for duplicate
@@ -53,11 +54,11 @@ export function processInbox(
       continue;
     }
 
-    if (msg.attachments.length === 0) {
+    if (msg.attachments.length === 0 && !msg.body.trim()) {
       logException(sheets.exceptions, {
         documentId: msg.id,
-        stage: 'attachments',
-        error: `No attachments found in message from ${msg.from}`,
+        stage: 'content',
+        error: `No report content found in message from ${msg.from}`,
         severity: 'ERROR',
         assignee: 'admin',
       });
@@ -67,8 +68,11 @@ export function processInbox(
       continue;
     }
 
-    const attachmentHashes = msg.attachments.map(att => hashBlob(att.blob));
-    if (attachmentHashes.every(hash => isFileHashAlreadyArchived(hash, sheets.received))) {
+    const contentHashes = msg.attachments.length > 0
+      ? msg.attachments.map(att => hashBlob(att.blob))
+      : [hashText(msg.body)];
+
+    if (contentHashes.every(hash => isFileHashAlreadyArchived(hash, sheets.received))) {
       result.skipped++;
       markAsProcessed(msg.id);
       result.details.push(`Skipped duplicate file hash: ${msg.id}`);
@@ -79,7 +83,7 @@ export function processInbox(
     const archiveLinks: string[] = [];
     for (let i = 0; i < msg.attachments.length; i++) {
       const att = msg.attachments[i];
-      if (isFileHashAlreadyArchived(attachmentHashes[i], sheets.received)) {
+      if (isFileHashAlreadyArchived(contentHashes[i], sheets.received)) {
         result.skipped++;
         result.details.push(`Skipped duplicate attachment: ${att.name}`);
         continue;
@@ -105,11 +109,35 @@ export function processInbox(
       }
     }
 
+    if (msg.attachments.length === 0) {
+      try {
+        const archiveResult = archiveMessageBody(
+          msg.body,
+          buildBodyArchiveFileName(msg.subject, classification.periodStart || 'unknown'),
+          classification.propertyId!,
+          'REPORTS',
+          classification.periodStart || 'unknown',
+          driveConfig.rootFolderId
+        );
+        archiveLinks.push(archiveResult.driveLink);
+      } catch (e) {
+        logException(sheets.exceptions, {
+          documentId: msg.id,
+          stage: 'archive',
+          error: `Failed to archive message body: ${e}`,
+          severity: 'ERROR',
+          assignee: 'admin',
+        });
+      }
+    }
+
+    const receivedReportId = `${msg.id}_${classification.propertyId}`;
+
     // Create received report record
     sheets.received.appendRow([
-      `${msg.id}_${classification.propertyId}`,
+      receivedReportId,
       msg.id,
-      attachmentHashes.join(', '),
+      contentHashes.join(', '),
       msg.receivedAt,
       classification.propertyId,
       classification.reportDefinitionId,
@@ -118,12 +146,24 @@ export function processInbox(
       'AUTOMATIC',
     ]);
 
+    if (sheets.kpiHistory && msg.body.trim()) {
+      appendBodyMetrics(
+        sheets.kpiHistory,
+        receivedReportId,
+        classification.propertyId,
+        classification.periodStart || '',
+        classification.periodEnd || classification.periodStart || '',
+        extractMetricsFromBody(msg.body),
+        msg.receivedAt
+      );
+    }
+
     if (sheets.audit) {
       writeAuditLog(sheets.audit, createAuditLogEntry({
         actor: driveConfig.actorEmail || 'system',
         action: 'REPORT_SYNCED',
         entity: 'ReceivedReports',
-        entityId: `${msg.id}_${classification.propertyId}`,
+        entityId: receivedReportId,
         oldValue: '',
         newValue: archiveLinks.join(', '),
       }));
@@ -135,6 +175,13 @@ export function processInbox(
   }
 
   return result;
+}
+
+export function buildIntakeSearchQuery(): { raw: string; unreadOnly: false } {
+  return {
+    raw: 'newer_than:60d -in:trash -in:spam',
+    unreadOnly: false,
+  };
 }
 
 export function isFileHashAlreadyArchived(
@@ -151,6 +198,108 @@ export function isFileHashAlreadyArchived(
 
 export function hashBlob(blob: GoogleAppsScript.Base.Blob): string {
   return sha256Hex(blob.getBytes().map(byte => (byte + 256) % 256));
+}
+
+export function hashText(value: string): string {
+  return sha256Hex(utf8Bytes(value));
+}
+
+export interface BodyMetric {
+  code: string;
+  value: number;
+  unit: string;
+}
+
+export function extractMetricsFromBody(body: string): BodyMetric[] {
+  const patterns: Array<{ code: string; unit: string; regex: RegExp }> = [
+    { code: 'SCHEDULED_RENT', unit: 'USD', regex: /Actual Rent Charges:\s*\$?([\d,]+(?:\.\d+)?)/i },
+    { code: 'REVENUE', unit: 'USD', regex: /Current Collections:\s*\$?([\d,]+(?:\.\d+)?)/i },
+    { code: 'COLLECTION_RATE', unit: '%', regex: /Collection rate:\s*([\d,]+(?:\.\d+)?)%/i },
+    { code: 'OCCUPANCY', unit: '%', regex: /Physical Occupancy:\s*([\d,]+(?:\.\d+)?)%/i },
+    { code: 'OCCUPANCY', unit: '%', regex: /occupied at\s*([\d,]+(?:\.\d+)?)%/i },
+    { code: 'LEASED_PERCENT', unit: '%', regex: /(?:^|\n)\s*Leased:\s*([\d,]+(?:\.\d+)?)%/i },
+    { code: 'LEADS', unit: 'count', regex: /(?:^|\n)\s*Leads:\s*([\d,]+)/i },
+    { code: 'TOURS', unit: 'count', regex: /Shows\/Tours:\s*([\d,]+)/i },
+    { code: 'TOURS', unit: 'count', regex: /(?:^|\n)\s*Tours\s*-\s*T7[\s\S]*?\n\s*([\d,]+)/i },
+    { code: 'APPLICATIONS', unit: 'count', regex: /Applications Submitted:\s*([\d,]+)/i },
+    { code: 'APPLICATIONS', unit: 'count', regex: /Applications Received Today:\s*([\d,]+)/i },
+    { code: 'LEASES_SIGNED', unit: 'count', regex: /Leases Signed:\s*([\d,]+)/i },
+    { code: 'LEASES_SIGNED', unit: 'count', regex: /New Leases Fully Executed Today:\s*([\d,]+)/i },
+    { code: 'IN_PLACE_RENT', unit: 'USD', regex: /In Place Rent:\s*\$?([\d,]+(?:\.\d+)?)/i },
+    { code: 'REVENUE', unit: 'USD', regex: /Total Income Collected\s*\$?([\d,]+(?:\.\d+)?)/i },
+    { code: 'DELINQUENCY', unit: 'USD', regex: /Current Delinquency\s*\$?([\d,]+(?:\.\d+)?)/i },
+    { code: 'DELINQUENCY', unit: 'USD', regex: /\$?([\d,]+(?:\.\d+)?)\s*\([^)]*%\s*\)\s*Delinquency/i },
+  ];
+
+  const metrics: BodyMetric[] = [];
+  for (const pattern of patterns) {
+    const match = body.match(pattern.regex);
+    if (!match) continue;
+
+    const value = Number(match[1].replace(/,/g, ''));
+    if (Number.isNaN(value)) continue;
+    metrics.push({ code: pattern.code, value, unit: pattern.unit });
+  }
+  return metrics;
+}
+
+function appendBodyMetrics(
+  sheet: GoogleAppsScript.Spreadsheet.Sheet,
+  receivedReportId: string,
+  propertyId: string,
+  periodStart: string,
+  periodEnd: string,
+  metrics: BodyMetric[],
+  publishedAt: string
+): void {
+  metrics.forEach((metric, index) => {
+    sheet.appendRow([
+      `${receivedReportId}_${metric.code}_${index + 1}`,
+      propertyId,
+      periodStart,
+      periodEnd,
+      metric.code,
+      metric.value,
+      metric.unit,
+      receivedReportId,
+      publishedAt,
+    ]);
+  });
+}
+
+function buildBodyArchiveFileName(subject: string, periodLabel: string): string {
+  const safeSubject = subject.trim().replace(/[^a-z0-9._ -]/gi, '-').replace(/\s+/g, ' ').slice(0, 80);
+  return `${periodLabel} - ${safeSubject || 'Email Report'}.txt`;
+}
+
+function utf8Bytes(value: string): number[] {
+  const bytes: number[] = [];
+  for (let i = 0; i < value.length; i++) {
+    let codePoint = value.charCodeAt(i);
+    if (codePoint >= 0xd800 && codePoint <= 0xdbff && i + 1 < value.length) {
+      const next = value.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        codePoint = 0x10000 + ((codePoint - 0xd800) << 10) + (next - 0xdc00);
+        i++;
+      }
+    }
+
+    if (codePoint < 0x80) bytes.push(codePoint);
+    else if (codePoint < 0x800) {
+      bytes.push(0xc0 | (codePoint >> 6));
+      bytes.push(0x80 | (codePoint & 0x3f));
+    } else if (codePoint < 0x10000) {
+      bytes.push(0xe0 | (codePoint >> 12));
+      bytes.push(0x80 | ((codePoint >> 6) & 0x3f));
+      bytes.push(0x80 | (codePoint & 0x3f));
+    } else {
+      bytes.push(0xf0 | (codePoint >> 18));
+      bytes.push(0x80 | ((codePoint >> 12) & 0x3f));
+      bytes.push(0x80 | ((codePoint >> 6) & 0x3f));
+      bytes.push(0x80 | (codePoint & 0x3f));
+    }
+  }
+  return bytes;
 }
 
 function sha256Hex(bytes: number[]): string {

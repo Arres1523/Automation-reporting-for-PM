@@ -67,22 +67,26 @@ export function extractPeriod(
   subject: string,
   attachments: Array<{ name: string }>
 ): string | null {
-  const datePatterns = [
-    /(\d{4})-(\d{2})-(\d{2})/,
-    /(\d{4})(\d{2})(\d{2})/,
-  ];
-
   const textToSearch = [subject, ...attachments.map(a => a.name)].join(' ');
+  const yearFirst = textToSearch.match(/(?:^|\D)(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})(?=\D|$)/);
+  if (yearFirst) {
+    return formatDateParts(yearFirst[1], yearFirst[2], yearFirst[3]);
+  }
 
-  for (const pattern of datePatterns) {
-    const match = textToSearch.match(pattern);
-    if (match) {
-      if (match[3] && match[1] && match[2]) {
-        return `${match[1]}-${match[2]}-${match[3]}`;
-      }
-      return match[0];
-    }
+  const compact = textToSearch.match(/(?:^|\D)(\d{4})(\d{2})(\d{2})(?=\D|$)/);
+  if (compact) {
+    return formatDateParts(compact[1], compact[2], compact[3]);
+  }
+
+  const monthFirst = textToSearch.match(/(?:^|\D)(\d{1,2})[-.\/](\d{1,2})[-.\/](\d{2,4})(?=\D|$)/);
+  if (monthFirst) {
+    const year = monthFirst[3].length === 2 ? `20${monthFirst[3]}` : monthFirst[3];
+    return formatDateParts(year, monthFirst[1], monthFirst[2]);
   }
 
   return null;
+}
+
+function formatDateParts(year: string, month: string, day: string): string {
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }

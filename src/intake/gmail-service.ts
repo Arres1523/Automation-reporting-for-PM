@@ -4,6 +4,7 @@ export interface GmailMessageInfo {
   from: string;
   subject: string;
   receivedAt: string;
+  body: string;
   attachments: GmailAttachmentInfo[];
 }
 
@@ -15,22 +16,25 @@ export interface GmailAttachmentInfo {
 }
 
 export interface GmailSearchQuery {
+  raw?: string;
   from?: string;
   subject?: string;
   after?: string;
   before?: string;
   label?: string;
+  unreadOnly?: boolean;
 }
 
 export function searchMessages(query: GmailSearchQuery): GmailMessageInfo[] {
   const parts: string[] = [];
 
+  if (query.raw) parts.push(query.raw);
   if (query.from) parts.push(`from:${query.from}`);
   if (query.subject) parts.push(`subject:${query.subject}`);
   if (query.after) parts.push(`after:${query.after}`);
   if (query.before) parts.push(`before:${query.before}`);
   if (query.label) parts.push(`label:${query.label}`);
-  parts.push('is:unread');
+  if (query.unreadOnly !== false) parts.push('is:unread');
 
   const searchQuery = parts.join(' ');
   const threads = GmailApp.search(searchQuery, 0, 50);
@@ -51,6 +55,7 @@ export function searchMessages(query: GmailSearchQuery): GmailMessageInfo[] {
       from: msg.getFrom(),
       subject: msg.getSubject(),
       receivedAt: msg.getDate().toISOString(),
+      body: msg.getPlainBody(),
       attachments,
     });
   }

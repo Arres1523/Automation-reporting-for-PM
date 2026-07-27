@@ -72,6 +72,7 @@ export function processIntake(): GoogleAppsScript.Content.TextOutput {
       received: requireSheetByName(spreadsheet, 'ReceivedReports'),
       exceptions: requireSheetByName(spreadsheet, 'ExceptionQueue'),
       audit: requireSheetByName(spreadsheet, 'AuditLog'),
+      kpiHistory: requireSheetByName(spreadsheet, 'KPIHistory'),
     },
     {
       rootFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_ROOT_FOLDER_ID') || '',

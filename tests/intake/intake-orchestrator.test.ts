@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { processInbox } from '../../src/intake/intake-orchestrator';
+import { buildIntakeSearchQuery, extractMetricsFromBody } from '../../src/intake/intake-orchestrator';
 import type { IntakeResult } from '../../src/intake/intake-orchestrator';
 
 const messages = vi.hoisted(() => [] as Array<{
@@ -8,6 +9,7 @@ const messages = vi.hoisted(() => [] as Array<{
   from: string;
   subject: string;
   receivedAt: string;
+  body: string;
   attachments: Array<{
     name: string;
     mimeType: string;
@@ -19,11 +21,16 @@ const messages = vi.hoisted(() => [] as Array<{
   }>;
 }>);
 const archived = vi.hoisted(() => [] as Array<{ propertyId: string; periodLabel: string }>);
+const archivedBodies = vi.hoisted(() => [] as Array<{ propertyId: string; periodLabel: string; body: string }>);
 const processedIds = vi.hoisted(() => [] as string[]);
 const errorIds = vi.hoisted(() => [] as string[]);
+const searchQueries = vi.hoisted(() => [] as unknown[]);
 
 vi.mock('../../src/intake/gmail-service', () => ({
-  searchMessages: () => messages,
+  searchMessages: (query: unknown) => {
+    searchQueries.push(query);
+    return messages;
+  },
   markAsProcessed: (messageId: string) => processedIds.push(messageId),
   markAsError: (messageId: string) => errorIds.push(messageId),
   isAlreadyProcessed: (messageId: string, receivedSheet: { getDataRange: () => { getValues: () => unknown[][] } }) => {
@@ -37,6 +44,14 @@ vi.mock('../../src/storage/drive-archiver', () => ({
     return {
       fileId: `file-${propertyId}-${periodLabel}`,
       driveLink: `https://drive.example/${propertyId}/${periodLabel}`,
+      folderPath: `${propertyId}/REPORTS/${periodLabel}`,
+    };
+  },
+  archiveMessageBody: (body: string, _fileName: string, propertyId: string, _frequency: string, periodLabel: string) => {
+    archivedBodies.push({ propertyId, periodLabel, body });
+    return {
+      fileId: `body-${propertyId}-${periodLabel}`,
+      driveLink: `https://drive.example/${propertyId}/${periodLabel}/body`,
       folderPath: `${propertyId}/REPORTS/${periodLabel}`,
     };
   },
@@ -77,6 +92,7 @@ describe('processInbox', () => {
       from: 'pm@example.com',
       subject: 'Daily Report 2026-07-27',
       receivedAt: '2026-07-27T13:00:00.000Z',
+      body: 'Physical Occupancy: 88.2%\nLeads: 17\nCurrent Delinquency $3,570.76',
       attachments: [
         {
           name: 'oasis-2026-07-27.xlsx',
@@ -89,6 +105,7 @@ describe('processInbox', () => {
     archived.splice(0, archived.length);
     processedIds.splice(0, processedIds.length);
     errorIds.splice(0, errorIds.length);
+    searchQueries.splice(0, searchQueries.length);
 
     const received = createSheet([
       ['id', 'messageId', 'fileHash', 'receivedAt', 'propertyId', 'reportDefinitionId', 'periodStart', 'driveLink', 'classification'],
@@ -107,6 +124,7 @@ describe('processInbox', () => {
     );
 
     expect(result).toMatchObject({ processed: 1, errors: 0, skipped: 0 });
+    expect(searchQueries[0]).toEqual({ raw: 'newer_than:60d -in:trash -in:spam', unreadOnly: false });
     expect(received.rows[1][2]).toBe('039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81');
     expect(received.rows[1][8]).toBe('AUTOMATIC');
     expect(audit.rows[1].slice(0, 6)).toEqual([
@@ -127,6 +145,7 @@ describe('processInbox', () => {
       from: 'pm@example.com',
       subject: 'Daily Report 2026-07-27',
       receivedAt: '2026-07-27T14:00:00.000Z',
+      body: 'Physical Occupancy: 88.2%',
       attachments: [
         {
           name: 'copy.xlsx',
@@ -155,5 +174,90 @@ describe('processInbox', () => {
     expect(result).toMatchObject({ processed: 0, errors: 0, skipped: 1 });
     expect(received.rows).toHaveLength(2);
     expect(archived).toEqual([]);
+  });
+
+  it('archives body-only reports and writes parsed body KPIs', () => {
+    messages.splice(0, messages.length, {
+      id: 'gmail-body-1',
+      threadId: 'thread-body-1',
+      from: 'pm@example.com',
+      subject: 'Daily Report 2026-07-28',
+      receivedAt: '2026-07-28T14:00:00.000Z',
+      body: [
+        'Physical Occupancy: 88.2% (112)',
+        'Leads: 17',
+        'Shows/Tours: 2',
+        'Applications Submitted: 2',
+        'Leases Signed: 1',
+        'Current Delinquency $3,570.76',
+      ].join('\n'),
+      attachments: [],
+    });
+    archivedBodies.splice(0, archivedBodies.length);
+
+    const received = createSheet([
+      ['id', 'messageId', 'fileHash', 'receivedAt', 'propertyId', 'reportDefinitionId', 'periodStart', 'driveLink', 'classification'],
+    ]);
+    const exceptions = createSheet([
+      ['id', 'documentId', 'stage', 'error', 'severity', 'status', 'assignee', 'createdAt'],
+    ]);
+    const kpiHistory = createSheet([
+      ['id', 'propertyId', 'periodStart', 'periodEnd', 'kpiCode', 'value', 'unit', 'sourceReportId', 'publishedAt'],
+    ]);
+
+    const result = processInbox(
+      rules,
+      { received, exceptions, kpiHistory },
+      { rootFolderId: 'drive-root', actorEmail: 'pm@example.com' }
+    );
+
+    expect(result).toMatchObject({ processed: 1, errors: 0, skipped: 0 });
+    expect(archivedBodies).toEqual([
+      {
+        propertyId: 'prop-oasis',
+        periodLabel: '2026-07-28',
+        body: messages[0].body,
+      },
+    ]);
+    expect(received.rows[1][7]).toBe('https://drive.example/prop-oasis/2026-07-28/body');
+    expect(kpiHistory.rows.slice(1).map(row => [row[4], row[5], row[6]])).toEqual([
+      ['OCCUPANCY', 88.2, '%'],
+      ['LEADS', 17, 'count'],
+      ['TOURS', 2, 'count'],
+      ['APPLICATIONS', 2, 'count'],
+      ['LEASES_SIGNED', 1, 'count'],
+      ['DELINQUENCY', 3570.76, 'USD'],
+    ]);
+  });
+});
+
+describe('extractMetricsFromBody', () => {
+  it('extracts operating and financial metrics from real report body wording', () => {
+    expect(extractMetricsFromBody([
+      'Actual Rent Charges: $78,252.00',
+      'Current Collections: $74,722.24',
+      'Collection rate: 95.48%',
+      'Physical Occupancy: 33% (29 units)',
+      'Leads: 3-Zumper',
+      'Total Income Collected $43,042.42',
+      'Current Delinquency $21,826.74',
+    ].join('\n'))).toEqual([
+      { code: 'SCHEDULED_RENT', value: 78252, unit: 'USD' },
+      { code: 'REVENUE', value: 74722.24, unit: 'USD' },
+      { code: 'COLLECTION_RATE', value: 95.48, unit: '%' },
+      { code: 'OCCUPANCY', value: 33, unit: '%' },
+      { code: 'LEADS', value: 3, unit: 'count' },
+      { code: 'REVENUE', value: 43042.42, unit: 'USD' },
+      { code: 'DELINQUENCY', value: 21826.74, unit: 'USD' },
+    ]);
+  });
+});
+
+describe('buildIntakeSearchQuery', () => {
+  it('uses a recent all-mail window so read report threads can be backfilled', () => {
+    expect(buildIntakeSearchQuery()).toEqual({
+      raw: 'newer_than:60d -in:trash -in:spam',
+      unreadOnly: false,
+    });
   });
 });
