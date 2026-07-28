@@ -86,6 +86,13 @@ describe('extractPeriod', () => {
     expect(extractPeriod('August Friendswood DLR 7.18.26', [])).toBe('2026-07-18');
   });
 
+  it('extracts named month dates from real August weekly subjects', () => {
+    expect(extractPeriod("[UDP] August Friendswood-BCG's Weekly Report - July 18th, 2026", [])).toBe(
+      '2026-07-18'
+    );
+    expect(extractPeriod('Available weekly reports Apr 12th 2026', [])).toBe('2026-04-12');
+  });
+
   it('should return null when no date found', () => {
     const period = extractPeriod('No dates here', [{ name: 'file.pdf' }]);
     expect(period).toBeNull();

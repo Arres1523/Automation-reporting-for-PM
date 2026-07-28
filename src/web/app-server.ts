@@ -579,6 +579,7 @@ export function syncReportsNow(): SyncReportsResult {
       exceptions: requireSheetByName(ss, 'ExceptionQueue'),
       audit: requireSheetByName(ss, 'AuditLog'),
       kpiHistory: requireSheetByName(ss, 'KPIHistory'),
+      expected: requireSheetByName(ss, 'ExpectedReports'),
     },
     {
       rootFolderId,

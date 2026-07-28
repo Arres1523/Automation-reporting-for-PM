@@ -6,7 +6,8 @@ This runbook turns the MVP codebase into a working Google Apps Script DEV deploy
 
 - Node dependencies installed with `npm install`.
 - Google account with permission to create Apps Script projects, Google Sheets, Gmail labels, and Drive folders.
-- A Drive root folder ready for archived report attachments.
+- A shared Drive root folder ready for archived report attachments.
+- A Google Sheet ID that will act as the central MVP database.
 
 ## 1. Verify The Local Build
 
@@ -85,10 +86,13 @@ It creates these 9 tabs with headers from `src/config/table-headers.ts`:
 In Apps Script, set:
 
 ```text
+SPREADSHEET_ID = <Google Sheet ID for the central MVP database>
 DRIVE_ROOT_FOLDER_ID = <Google Drive folder ID for archived reports>
+PM_NOTIFICATION_EMAIL = <fallback PM notification email>
+ASSET_MANAGEMENT_EMAIL = <fallback Asset Management email>
 ```
 
-The intake process uses this as the archive root.
+The manual user sync reads Gmail as the signed-in user, writes rows to the central Sheet, and archives files under the shared Drive root.
 
 ## 7. Configure DEV Triggers
 
@@ -100,11 +104,10 @@ installDevTriggers
 
 It creates the DEV trigger schedule:
 
-- `processIntake`: every 5 minutes.
 - `evaluateStatuses`: every 1 hour.
 - `extendCalendar`: every 24 hours.
 
-The installer removes existing triggers for those same handler names before creating new ones, preventing duplicate DEV triggers.
+The installer removes existing triggers for those same handler names before creating new ones, preventing duplicate DEV triggers. Gmail intake is manual per signed-in user for this MVP and is run from the web app button `Sync Gmail to Drive`.
 
 ## 8. Populate Required Business Configuration
 
@@ -112,7 +115,7 @@ Populate these tabs before expecting automation to classify reports:
 
 - `Properties`: the 4 MVP properties.
 - `ReportDefinitions`: one row per expected report type/frequency/parser.
-- `Users`: internal users and roles.
+- `Users`: internal users, roles, allowed property IDs, and active flag.
 
 The MVP properties are:
 
@@ -136,12 +139,15 @@ These are business/data activities and cannot be completed from code alone:
 
 After configuration:
 
-1. Send or forward one known report email to the monitored Gmail inbox.
-2. Run `processIntake` manually once.
-3. Confirm a row appears in `ReceivedReports`.
-4. Confirm the attachment appears under the configured Drive archive root.
-5. Run `extendCalendar` and confirm rows are generated in `ExpectedReports`.
-6. Run `evaluateStatuses` and confirm reports move only between `WAITING`, `RECEIVED`, and `MISSING`.
+1. Send or forward one known report email to an authorized user's Gmail inbox.
+2. Open the deployed Apps Script Web App as that user and approve Gmail, Drive, Sheets, and Mail scopes.
+3. Click `Sync Gmail to Drive`.
+4. Confirm a row appears in `ReceivedReports` with the user's email in `actorEmail`.
+5. Confirm the attachment appears under the configured Drive archive root.
+6. Confirm any parsed metrics appear in `KPIHistory`.
+7. Click `Sync Gmail to Drive` again and confirm the same logical report is skipped, not duplicated.
+8. Run `extendCalendar` and confirm rows are generated in `ExpectedReports`.
+9. Run `evaluateStatuses` and confirm reports move only between `WAITING`, `RECEIVED`, and `MISSING`.
 
 ## Handler Reference
 
@@ -153,3 +159,4 @@ These functions are exposed globally for Apps Script:
 - `evaluateStatuses`
 - `extendCalendar`
 - `installDevTriggers`
+- `syncReportsNow`

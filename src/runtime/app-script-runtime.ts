@@ -38,7 +38,6 @@ export function buildClassificationRulesFromRows(rows: unknown[][]): Classificat
 
 export function getTriggerSpecs(): TriggerSpec[] {
   return [
-    { handlerName: 'processIntake', everyMinutes: TRIGGER_INTERVALS.INTAKE_MINUTES },
     { handlerName: 'evaluateStatuses', everyHours: TRIGGER_INTERVALS.STATUS_HOURS },
     { handlerName: 'extendCalendar', everyHours: TRIGGER_INTERVALS.CALENDAR_HOURS },
   ];
@@ -62,6 +61,23 @@ export function setupSpreadsheet(): string {
   return spreadsheet.getId();
 }
 
+export function configureScriptProperties(
+  spreadsheetId: string,
+  driveRootFolderId: string,
+  pmNotificationEmail: string,
+  assetManagementEmail: string
+): Record<string, string> {
+  const values = {
+    SPREADSHEET_ID: spreadsheetId,
+    DRIVE_ROOT_FOLDER_ID: driveRootFolderId,
+    PM_NOTIFICATION_EMAIL: pmNotificationEmail,
+    ASSET_MANAGEMENT_EMAIL: assetManagementEmail,
+  };
+
+  PropertiesService.getScriptProperties().setProperties(values, false);
+  return values;
+}
+
 export function processIntake(): GoogleAppsScript.Content.TextOutput {
   const spreadsheet = getConfiguredSpreadsheet();
   const reportDefinitionsSheet = requireSheetByName(spreadsheet, 'ReportDefinitions');
@@ -73,6 +89,7 @@ export function processIntake(): GoogleAppsScript.Content.TextOutput {
       exceptions: requireSheetByName(spreadsheet, 'ExceptionQueue'),
       audit: requireSheetByName(spreadsheet, 'AuditLog'),
       kpiHistory: requireSheetByName(spreadsheet, 'KPIHistory'),
+      expected: requireSheetByName(spreadsheet, 'ExpectedReports'),
     },
     {
       rootFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_ROOT_FOLDER_ID') || '',

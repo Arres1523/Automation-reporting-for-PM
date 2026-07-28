@@ -55,6 +55,7 @@ export interface ReceivedReport {
   periodStart: string;
   driveLink: string;
   classification: string;
+  actorEmail: string;
 }
 
 export interface KpiRecord {

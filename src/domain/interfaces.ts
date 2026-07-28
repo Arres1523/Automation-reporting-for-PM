@@ -19,6 +19,7 @@ export interface Repository<T> {
 export interface ClassifierResult {
   propertyId: string | null;
   reportDefinitionId: string | null;
+  frequency: string | null;
   periodStart: string | null;
   confidence: number;
 }

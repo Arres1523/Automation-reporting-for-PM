@@ -20,8 +20,8 @@ const messages = vi.hoisted(() => [] as Array<{
     };
   }>;
 }>);
-const archived = vi.hoisted(() => [] as Array<{ propertyId: string; periodLabel: string }>);
-const archivedBodies = vi.hoisted(() => [] as Array<{ propertyId: string; periodLabel: string; body: string }>);
+const archived = vi.hoisted(() => [] as Array<{ propertyId: string; frequency: string; periodLabel: string; rootFolderId: string }>);
+const archivedBodies = vi.hoisted(() => [] as Array<{ propertyId: string; frequency: string; periodLabel: string; rootFolderId: string; body: string }>);
 const processedIds = vi.hoisted(() => [] as string[]);
 const errorIds = vi.hoisted(() => [] as string[]);
 const searchQueries = vi.hoisted(() => [] as unknown[]);
@@ -39,16 +39,16 @@ vi.mock('../../src/intake/gmail-service', () => ({
 }));
 
 vi.mock('../../src/storage/drive-archiver', () => ({
-  archiveAttachment: (_blob: unknown, propertyId: string, _frequency: string, periodLabel: string) => {
-    archived.push({ propertyId, periodLabel });
+  archiveAttachment: (_blob: unknown, propertyId: string, frequency: string, periodLabel: string, rootFolderId: string) => {
+    archived.push({ propertyId, frequency, periodLabel, rootFolderId });
     return {
       fileId: `file-${propertyId}-${periodLabel}`,
       driveLink: `https://drive.example/${propertyId}/${periodLabel}`,
       folderPath: `${propertyId}/REPORTS/${periodLabel}`,
     };
   },
-  archiveMessageBody: (body: string, _fileName: string, propertyId: string, _frequency: string, periodLabel: string) => {
-    archivedBodies.push({ propertyId, periodLabel, body });
+  archiveMessageBody: (body: string, _fileName: string, propertyId: string, frequency: string, periodLabel: string, rootFolderId: string) => {
+    archivedBodies.push({ propertyId, frequency, periodLabel, rootFolderId, body });
     return {
       fileId: `body-${propertyId}-${periodLabel}`,
       driveLink: `https://drive.example/${propertyId}/${periodLabel}/body`,
@@ -62,6 +62,11 @@ function createSheet(rows: unknown[][]) {
     rows,
     getDataRange: () => ({ getValues: () => rows }),
     appendRow: (row: unknown[]) => rows.push(row),
+    getRange: (row: number, column: number) => ({
+      setValue: (value: unknown) => {
+        rows[row - 1][column - 1] = value;
+      },
+    }),
   } as unknown as GoogleAppsScript.Spreadsheet.Sheet & { rows: unknown[][] };
 }
 
@@ -108,7 +113,7 @@ describe('processInbox', () => {
     searchQueries.splice(0, searchQueries.length);
 
     const received = createSheet([
-      ['id', 'messageId', 'fileHash', 'receivedAt', 'propertyId', 'reportDefinitionId', 'periodStart', 'driveLink', 'classification'],
+      ['id', 'messageId', 'fileHash', 'receivedAt', 'propertyId', 'reportDefinitionId', 'periodStart', 'driveLink', 'classification', 'actorEmail'],
     ]);
     const exceptions = createSheet([
       ['id', 'documentId', 'stage', 'error', 'severity', 'status', 'assignee', 'createdAt'],
@@ -116,10 +121,14 @@ describe('processInbox', () => {
     const audit = createSheet([
       ['actor', 'action', 'entity', 'entityId', 'oldValue', 'newValue', 'timestamp'],
     ]);
+    const expected = createSheet([
+      ['id', 'propertyId', 'reportDefinitionId', 'periodStart', 'periodEnd', 'deadline', 'status', 'receivedReportId', 'late', 'reminderDates'],
+      ['exp-oasis-2026-07-27', 'prop-oasis', 'def-oasis-daily', '2026-07-27', '2026-07-27', '2026-07-27T23:00:00.000Z', 'WAITING', '', 'false', ''],
+    ]);
 
     const result = processInbox(
       rules,
-      { received, exceptions, audit },
+      { received, exceptions, audit, expected },
       { rootFolderId: 'drive-root', actorEmail: 'analyst@example.com' }
     );
 
@@ -127,6 +136,7 @@ describe('processInbox', () => {
     expect(searchQueries[0]).toEqual({ raw: 'newer_than:60d -in:trash -in:spam', unreadOnly: false });
     expect(received.rows[1][2]).toBe('039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81');
     expect(received.rows[1][8]).toBe('AUTOMATIC');
+    expect(received.rows[1][9]).toBe('analyst@example.com');
     expect(audit.rows[1].slice(0, 6)).toEqual([
       'analyst@example.com',
       'REPORT_SYNCED',
@@ -135,7 +145,10 @@ describe('processInbox', () => {
       '',
       'https://drive.example/prop-oasis/2026-07-27',
     ]);
-    expect(archived).toEqual([{ propertyId: 'prop-oasis', periodLabel: '2026-07-27' }]);
+    expect(archived).toEqual([{ propertyId: 'prop-oasis', frequency: 'DAILY', periodLabel: '2026-07-27', rootFolderId: 'drive-root' }]);
+    expect(expected.rows[1][6]).toBe('RECEIVED');
+    expect(expected.rows[1][7]).toBe('gmail-1_prop-oasis');
+    expect(expected.rows[1][8]).toBe('false');
   });
 
   it('skips a globally duplicated file hash without archiving a second copy', () => {
@@ -158,8 +171,8 @@ describe('processInbox', () => {
     archived.splice(0, archived.length);
 
     const received = createSheet([
-      ['id', 'messageId', 'fileHash', 'receivedAt', 'propertyId', 'reportDefinitionId', 'periodStart', 'driveLink', 'classification'],
-      ['recv-old', 'gmail-old', '039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81', '2026-07-27T13:00:00.000Z', 'prop-oasis', 'def-oasis-daily', '2026-07-27', 'https://drive.example/old', 'AUTOMATIC'],
+      ['id', 'messageId', 'fileHash', 'receivedAt', 'propertyId', 'reportDefinitionId', 'periodStart', 'driveLink', 'classification', 'actorEmail'],
+      ['recv-old', 'gmail-old', '039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81', '2026-07-27T13:00:00.000Z', 'prop-oasis', 'def-oasis-daily', '2026-07-27', 'https://drive.example/old', 'AUTOMATIC', 'other@example.com'],
     ]);
     const exceptions = createSheet([
       ['id', 'documentId', 'stage', 'error', 'severity', 'status', 'assignee', 'createdAt'],
@@ -196,7 +209,7 @@ describe('processInbox', () => {
     archivedBodies.splice(0, archivedBodies.length);
 
     const received = createSheet([
-      ['id', 'messageId', 'fileHash', 'receivedAt', 'propertyId', 'reportDefinitionId', 'periodStart', 'driveLink', 'classification'],
+      ['id', 'messageId', 'fileHash', 'receivedAt', 'propertyId', 'reportDefinitionId', 'periodStart', 'driveLink', 'classification', 'actorEmail'],
     ]);
     const exceptions = createSheet([
       ['id', 'documentId', 'stage', 'error', 'severity', 'status', 'assignee', 'createdAt'],
@@ -215,7 +228,9 @@ describe('processInbox', () => {
     expect(archivedBodies).toEqual([
       {
         propertyId: 'prop-oasis',
+        frequency: 'DAILY',
         periodLabel: '2026-07-28',
+        rootFolderId: 'drive-root',
         body: messages[0].body,
       },
     ]);
@@ -228,6 +243,44 @@ describe('processInbox', () => {
       ['LEASES_SIGNED', 1, 'count'],
       ['DELINQUENCY', 3570.76, 'USD'],
     ]);
+  });
+
+  it('skips a duplicated property definition period and file hash from another user', () => {
+    messages.splice(0, messages.length, {
+      id: 'gmail-duplicate-user',
+      threadId: 'thread-duplicate-user',
+      from: 'pm@example.com',
+      subject: 'Daily Report 2026-07-27',
+      receivedAt: '2026-07-27T15:00:00.000Z',
+      body: 'Physical Occupancy: 88.2%',
+      attachments: [
+        {
+          name: 'oasis-2026-07-27-forwarded.xlsx',
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          size: 3,
+          blob: { getBytes: () => [1, 2, 3] },
+        },
+      ],
+    });
+    archived.splice(0, archived.length);
+
+    const received = createSheet([
+      ['id', 'messageId', 'fileHash', 'receivedAt', 'propertyId', 'reportDefinitionId', 'periodStart', 'driveLink', 'classification', 'actorEmail'],
+      ['recv-old', 'gmail-old', '039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81', '2026-07-27T13:00:00.000Z', 'prop-oasis', 'def-oasis-daily', '2026-07-27', 'https://drive.example/old', 'AUTOMATIC', 'analyst@example.com'],
+    ]);
+    const exceptions = createSheet([
+      ['id', 'documentId', 'stage', 'error', 'severity', 'status', 'assignee', 'createdAt'],
+    ]);
+
+    const result = processInbox(
+      rules,
+      { received, exceptions },
+      { rootFolderId: 'drive-root', actorEmail: 'pm@example.com' }
+    );
+
+    expect(result).toMatchObject({ processed: 0, errors: 0, skipped: 1 });
+    expect(received.rows).toHaveLength(2);
+    expect(archived).toEqual([]);
   });
 });
 

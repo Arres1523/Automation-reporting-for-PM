@@ -67,12 +67,12 @@ Sheets → Web App (HTML Service) → Portfolio / Property / Control / Admin vie
 1. **Properties** — ID, code, name, status, timezone, Drive folder, contacts
 2. **ReportDefinitions** — property, type, frequency, parser key, authorized senders, deadline rule, escalation recipients
 3. **ExpectedReports** — period, deadline, status, receivedReportId, late flag, reminder dates
-4. **ReceivedReports** — messageId, file hash, receivedAt, classification, Drive link
+4. **ReceivedReports** — messageId, file hash, receivedAt, classification, Drive link, actor email
 5. **KPIHistory** — propertyId, period, kpiCode, value, unit, sourceReportId, publishedAt
 6. **ReminderLog** — expectedReportId, type, recipients, sentAt, result, messageId
 7. **ExceptionQueue** — documentId, stage, error, severity, resolution, assignee
 8. **AuditLog** — actor, action, entity, oldValue, newValue, timestamp
-9. **Users** — email, role, allowedPropertyId, active
+9. **Users** — email, role, allowedPropertyIds, active
 
 ### Internal Interfaces
 
@@ -143,12 +143,12 @@ interface Parser {
 **Gate:** Pilot property shows all future reports as `WAITING`.
 
 ### Phase 4 — Intake, Classification & Archive
-- `processInbox()` every 5 minutes via Apps Script trigger
-- Only unprocessed messages matching configured rules
+- MVP intake runs manually when a signed-in authorized user clicks `Sync Gmail to Drive`
+- Only unprocessed messages in that user's Gmail matching configured rules
 - SHA-256 hash of each attachment
 - Dedup check (message ID + file hash)
 - Classify: property, report type, period
-- Save to Drive: `Property / Frequency / YYYY / Reporting Period`
+- Save to central Drive root: `Property / Frequency / YYYY / Reporting Period`
 - Create ReceivedReport record with Drive link
 - Label message as processed
 - Exceptions: unknown sender, unidentified property, ambiguous period, missing attachment, unapproved format
@@ -235,7 +235,7 @@ Per remaining property:
 ### Phase 11 — Production & Handover
 - Deploy approved version to production project
 - Assign execution to corporate automation account
-- Activate triggers: intake (5min), status/reminders (1h), calendar generation (daily), backup (daily)
+- Activate triggers: status/reminders (1h), calendar generation (daily), backup (daily); per-user Gmail intake stays manual unless a central automation account is approved
 - Execution failure notifications
 - Daily backup of data model with retention defined by Valoris
 - Deliver: admin manual, format catalog, KPI dictionary, property/parser onboarding guide, recovery/rollback procedure, access matrix

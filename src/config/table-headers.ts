@@ -14,7 +14,7 @@ export const EXPECTED_REPORTS_HEADERS = [
 
 export const RECEIVED_REPORTS_HEADERS = [
   'id', 'messageId', 'fileHash', 'receivedAt', 'propertyId',
-  'reportDefinitionId', 'periodStart', 'driveLink', 'classification',
+  'reportDefinitionId', 'periodStart', 'driveLink', 'classification', 'actorEmail',
 ] as const;
 
 export const KPI_HISTORY_HEADERS = [

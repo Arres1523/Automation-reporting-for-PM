@@ -39,9 +39,8 @@ describe('buildClassificationRulesFromRows', () => {
 });
 
 describe('getTriggerSpecs', () => {
-  it('returns the DEV trigger schedule for the Apps Script handlers', () => {
+  it('keeps Gmail intake manual per user and schedules only central maintenance handlers', () => {
     expect(getTriggerSpecs()).toEqual([
-      { handlerName: 'processIntake', everyMinutes: 5 },
       { handlerName: 'evaluateStatuses', everyHours: 1 },
       { handlerName: 'extendCalendar', everyHours: 24 },
     ]);

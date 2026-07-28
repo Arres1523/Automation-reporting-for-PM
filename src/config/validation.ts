@@ -84,7 +84,6 @@ export function validateExpectedReport(report: {
 export function validateUser(user: {
   email: string;
   role: string;
-  allowedPropertyId?: string;
   allowedPropertyIds?: string;
 }): ValidationIssue[] {
   const issues: ValidationIssue[] = [];

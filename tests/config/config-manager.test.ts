@@ -41,7 +41,7 @@ describe('applyUserChange', () => {
       entity: 'Users',
       entityId: 'invalid-email',
       oldValue: '{}',
-      newValue: JSON.stringify({ email: 'invalid-email', role: 'admin', allowedPropertyId: 'p1' }),
+      newValue: JSON.stringify({ email: 'invalid-email', role: 'admin', allowedPropertyIds: 'p1' }),
     };
     const mockSheet = {} as GoogleAppsScript.Spreadsheet.Sheet;
     const result = applyUserChange(mockSheet, change);

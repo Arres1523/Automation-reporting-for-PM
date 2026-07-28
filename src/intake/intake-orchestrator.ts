@@ -18,6 +18,7 @@ export function processInbox(
     exceptions: GoogleAppsScript.Spreadsheet.Sheet;
     audit?: GoogleAppsScript.Spreadsheet.Sheet;
     kpiHistory?: GoogleAppsScript.Spreadsheet.Sheet;
+    expected?: GoogleAppsScript.Spreadsheet.Sheet;
   },
   driveConfig: {
     rootFolderId: string;
@@ -72,7 +73,13 @@ export function processInbox(
       ? msg.attachments.map(att => hashBlob(att.blob))
       : [hashText(msg.body)];
 
-    if (contentHashes.every(hash => isFileHashAlreadyArchived(hash, sheets.received))) {
+    if (contentHashes.every(hash => isReportContentAlreadyReceived(
+      hash,
+      classification.propertyId,
+      classification.reportDefinitionId,
+      classification.periodStart || '',
+      sheets.received
+    ))) {
       result.skipped++;
       markAsProcessed(msg.id);
       result.details.push(`Skipped duplicate file hash: ${msg.id}`);
@@ -83,7 +90,13 @@ export function processInbox(
     const archiveLinks: string[] = [];
     for (let i = 0; i < msg.attachments.length; i++) {
       const att = msg.attachments[i];
-      if (isFileHashAlreadyArchived(contentHashes[i], sheets.received)) {
+      if (isReportContentAlreadyReceived(
+        contentHashes[i],
+        classification.propertyId,
+        classification.reportDefinitionId,
+        classification.periodStart || '',
+        sheets.received
+      )) {
         result.skipped++;
         result.details.push(`Skipped duplicate attachment: ${att.name}`);
         continue;
@@ -93,7 +106,7 @@ export function processInbox(
         const archiveResult = archiveAttachment(
           att.blob,
           classification.propertyId!,
-          'REPORTS',
+          classification.frequency || 'REPORTS',
           classification.periodStart || 'unknown',
           driveConfig.rootFolderId
         );
@@ -115,7 +128,7 @@ export function processInbox(
           msg.body,
           buildBodyArchiveFileName(msg.subject, classification.periodStart || 'unknown'),
           classification.propertyId!,
-          'REPORTS',
+          classification.frequency || 'REPORTS',
           classification.periodStart || 'unknown',
           driveConfig.rootFolderId
         );
@@ -144,7 +157,19 @@ export function processInbox(
       classification.periodStart || '',
       archiveLinks.join(', '),
       'AUTOMATIC',
+      driveConfig.actorEmail || 'system',
     ]);
+
+    if (sheets.expected) {
+      markExpectedReportReceived(
+        sheets.expected,
+        classification.propertyId,
+        classification.reportDefinitionId,
+        classification.periodStart || '',
+        receivedReportId,
+        msg.receivedAt
+      );
+    }
 
     if (sheets.kpiHistory && msg.body.trim()) {
       appendBodyMetrics(
@@ -192,6 +217,55 @@ export function isFileHashAlreadyArchived(
   for (let i = 1; i < data.length; i++) {
     const hashes = String(data[i][2] || '').split(',').map(hash => hash.trim());
     if (hashes.includes(fileHash)) return true;
+  }
+  return false;
+}
+
+export function isReportContentAlreadyReceived(
+  fileHash: string,
+  propertyId: string | null,
+  reportDefinitionId: string | null,
+  periodStart: string,
+  receivedSheet: GoogleAppsScript.Spreadsheet.Sheet
+): boolean {
+  const data = receivedSheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    const hashes = String(data[i][2] || '').split(',').map(hash => hash.trim());
+    const sameReport =
+      String(data[i][4] || '') === String(propertyId || '') &&
+      String(data[i][5] || '') === String(reportDefinitionId || '') &&
+      String(data[i][6] || '') === periodStart;
+
+    if (sameReport && hashes.includes(fileHash)) return true;
+  }
+  return false;
+}
+
+export function markExpectedReportReceived(
+  expectedSheet: GoogleAppsScript.Spreadsheet.Sheet,
+  propertyId: string | null,
+  reportDefinitionId: string | null,
+  periodStart: string,
+  receivedReportId: string,
+  receivedAt: string
+): boolean {
+  const data = expectedSheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const sameReport =
+      String(row[1] || '') === String(propertyId || '') &&
+      String(row[2] || '') === String(reportDefinitionId || '') &&
+      String(row[3] || '') === periodStart;
+
+    if (!sameReport) continue;
+
+    const rowNumber = i + 1;
+    const deadline = String(row[5] || '');
+    const late = deadline ? new Date(receivedAt) > new Date(deadline) : false;
+    expectedSheet.getRange(rowNumber, 7).setValue('RECEIVED');
+    expectedSheet.getRange(rowNumber, 8).setValue(receivedReportId);
+    expectedSheet.getRange(rowNumber, 9).setValue(String(late));
+    return true;
   }
   return false;
 }

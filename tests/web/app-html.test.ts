@@ -69,12 +69,29 @@ describe('app.html script', () => {
     expect(() => new Function(getScript())).not.toThrow();
   });
 
+  it('renders the MVP workflow from intake through dashboard', () => {
+    const html = readFileSync('src/web/app.html', 'utf8');
+
+    expect(html).toContain('Select your Google account');
+    expect(html).toContain('Reports are read from Gmail, archived in Drive, recorded in Sheets, and shown as property indicators.');
+    expect(html).toContain('id="workflow-panel"');
+    expect(html).toContain('Gmail intake');
+    expect(html).toContain('Validation');
+    expect(html).toContain('Drive archive');
+    expect(html).toContain('PM follow-up');
+    expect(html).toContain('Dashboard');
+    expect(html).toContain('updateWorkflow(');
+  });
+
   it('shows the dashboard immediately when Google login starts', () => {
     const elements = new Map<string, FakeElement>();
     for (const id of [
       'login-button',
       'login-view',
       'app-view',
+      'workflow-panel',
+      'workflow-track',
+      'workflow-state',
       'current-user',
       'portfolio-grid',
       'property-list',
@@ -117,5 +134,7 @@ describe('app.html script', () => {
     expect(elements.get('portfolio-grid')!.innerHTML).toContain('August');
     expect(elements.get('portfolio-grid')!.innerHTML).toContain('La Jolla');
     expect(elements.get('portfolio-grid')!.innerHTML).toContain('Dalecrest');
+    expect(elements.get('workflow-state')!.textContent).toBe('Google authorization in progress');
+    expect(elements.get('workflow-track')!.innerHTML).toContain('is-current');
   });
 });

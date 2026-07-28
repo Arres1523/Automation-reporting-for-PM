@@ -9,6 +9,7 @@ function appsScriptFooter() {
     'var __valorisReportingEntrypoints = globalThis.__valorisReporting;',
     'function doGet(e){return __valorisReportingEntrypoints.doGet(e);}',
     'function onInstall(e){return __valorisReportingEntrypoints.onInstall(e);}',
+    'function configureScriptProperties(spreadsheetId,driveRootFolderId,pmNotificationEmail,assetManagementEmail){return __valorisReportingEntrypoints.configureScriptProperties(spreadsheetId,driveRootFolderId,pmNotificationEmail,assetManagementEmail);}',
     'function setupSpreadsheet(){return __valorisReportingEntrypoints.setupSpreadsheet();}',
     'function processIntake(){return __valorisReportingEntrypoints.processIntake();}',
     'function evaluateStatuses(){return __valorisReportingEntrypoints.evaluateStatuses();}',

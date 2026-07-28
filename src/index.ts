@@ -8,6 +8,7 @@ import {
   syncReportsNow,
 } from './web/app-server';
 import {
+  configureScriptProperties,
   evaluateStatuses,
   extendCalendar,
   installDevTriggers,
@@ -27,6 +28,7 @@ const appsScriptGlobals = globalThis as unknown as Record<string, unknown>;
 appsScriptGlobals.__valorisReporting = {
   doGet,
   onInstall,
+  configureScriptProperties,
   setupSpreadsheet,
   processIntake,
   evaluateStatuses,

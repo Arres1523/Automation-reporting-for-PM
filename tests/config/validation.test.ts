@@ -44,18 +44,18 @@ describe('validateReportDefinition', () => {
 
 describe('validateUser', () => {
   it('should error on invalid email format', () => {
-    const issues = validateUser({ email: 'not-an-email', role: 'admin', allowedPropertyId: 'p1' });
+    const issues = validateUser({ email: 'not-an-email', role: 'admin', allowedPropertyIds: 'p1' });
     expect(issues.some(i => i.field === 'email')).toBe(true);
   });
 
   it('should error on invalid role', () => {
-    const issues = validateUser({ email: 'a@b.com', role: 'superadmin', allowedPropertyId: 'p1' });
+    const issues = validateUser({ email: 'a@b.com', role: 'superadmin', allowedPropertyIds: 'p1' });
     expect(issues.some(i => i.field === 'role')).toBe(true);
   });
 
   it('accepts the internal Valoris dashboard roles', () => {
     for (const role of ['admin', 'asset_management', 'asset management', 'data_analyst', 'pm', 'owner']) {
-      const issues = validateUser({ email: `${role.replace(/\s+/g, '_')}@example.com`, role, allowedPropertyId: 'prop-oasis,prop-august' });
+      const issues = validateUser({ email: `${role.replace(/\s+/g, '_')}@example.com`, role, allowedPropertyIds: 'prop-oasis,prop-august' });
       expect(issues.filter(i => i.severity === 'ERROR')).toHaveLength(0);
     }
   });
